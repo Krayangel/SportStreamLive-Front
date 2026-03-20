@@ -1,59 +1,46 @@
 // src/hooks/useStream.js
-// Gestiona el ciclo de vida del stream en vivo vía WebSocket + REST.
-// El dueño puede iniciar/detener. Los viewers solo se suscriben.
-
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useWebSocket } from './useWebSocket';
+import { useState, useEffect, useCallback } from 'react';
+import { wsSubscribe, wsSend } from '../services/wsClient';
 import { startStream, stopStream } from '../services/streamService';
 import { WS_TOPICS, WS_APP } from '../config';
 
-export function useStream(streamId, user) {
-  const [status,   setStatus]   = useState('IDLE');   // IDLE | STARTED | ALIVE | ENDED
-  const [viewers,  setViewers]  = useState(0);
-  const [lastData, setLastData] = useState(null);
-  const { subscribe, send } = useWebSocket();
-  const ownerRef = useRef(false);
+export function useStream(streamId, user, isOwner) {
+  const [status, setStatus] = useState('IDLE');
 
-  // Suscribirse a eventos del stream
   useEffect(() => {
     if (!streamId) return;
-    const unsub = subscribe(WS_TOPICS.STREAM(streamId), (event) => {
-      if (event.tipo === 'STARTED') { setStatus('STARTED'); setViewers(v => v + 1); }
+    const unsub = wsSubscribe(WS_TOPICS.STREAM(streamId), (event) => {
+      console.log('[useStream] WS evento:', event.tipo);
+      if (event.tipo === 'STARTED') setStatus('STARTED');
       if (event.tipo === 'ALIVE')   setStatus('ALIVE');
-      if (event.tipo === 'ENDED')   { setStatus('ENDED'); ownerRef.current = false; }
-      if (event.tipo === 'DATA')    setLastData(event.payload);
+      if (event.tipo === 'ENDED')   setStatus('ENDED');
     });
     return unsub;
-  }, [streamId, subscribe]);
+  }, [streamId]);
 
-  /** El dueño inicia el stream (REST + WS) */
   const start = useCallback(async () => {
-    if (!user || !streamId) return;
-    await startStream(streamId, user.id);
-    ownerRef.current = true;
-    send(WS_APP.STREAM_START(streamId), { userId: user.id, tipo: 'START' });
-  }, [streamId, user, send]);
+    if (!user?.id || !streamId) return;
+    try {
+      await startStream(streamId, user.id);
+      setStatus('STARTED');
+      setTimeout(() => {
+        wsSend(WS_APP.STREAM_START(streamId), { userId: user.id, tipo: 'START' });
+      }, 600);
+    } catch (err) {
+      console.error('[useStream] start error:', err.message);
+    }
+  }, [streamId, user]);
 
-  /** El dueño detiene el stream */
   const stop = useCallback(async () => {
-    if (!user || !streamId) return;
-    await stopStream(streamId, user.id);
-    send(WS_APP.STREAM_STOP(streamId), { userId: user.id, tipo: 'STOP' });
-    ownerRef.current = false;
-  }, [streamId, user, send]);
+    if (!user?.id || !streamId) return;
+    try {
+      await stopStream(streamId, user.id);
+      setStatus('ENDED');
+      wsSend(WS_APP.STREAM_STOP(streamId), { userId: user.id, tipo: 'STOP' });
+    } catch (err) {
+      console.error('[useStream] stop error:', err.message);
+    }
+  }, [streamId, user]);
 
-  /** Enviar datos en vivo (GPS, bpm, etc.) */
-  const sendData = useCallback((payload) => {
-    send(WS_APP.STREAM_DATA(streamId), { streamId, userId: user?.id, tipo: 'DATA', payload });
-  }, [streamId, user, send]);
-
-  return {
-    status,
-    viewers,
-    lastData,
-    isOwner: ownerRef.current,
-    start,
-    stop,
-    sendData,
-  };
+  return { status, start, stop };
 }

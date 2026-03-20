@@ -1,45 +1,44 @@
 // src/hooks/useChat.js
-// Gestiona el chat en vivo de una sala vía STOMP.
-// Carga historial REST al montar y escucha mensajes nuevos en tiempo real.
-
 import { useState, useEffect, useCallback } from 'react';
-import { useWebSocket } from './useWebSocket';
-import { getChatHistory } from '../services/chatService';
-import { WS_TOPICS, WS_APP } from '../config';
+import { wsSubscribe, wsSend } from '../services/wsClient';
+import { getChatHistory }      from '../services/chatService';
+import { WS_TOPICS, WS_APP }   from '../config';
 
 export function useChat(roomId, user) {
   const [messages, setMessages] = useState([]);
   const [loading,  setLoading]  = useState(true);
-  const { subscribe, send } = useWebSocket();
 
-  // 1. Cargar historial al entrar a la sala
+  // Cargar historial REST al entrar
   useEffect(() => {
     if (!roomId) return;
     setLoading(true);
     getChatHistory(roomId)
-      .then(setMessages)
+      .then(data => setMessages(Array.isArray(data) ? data : []))
       .catch(() => setMessages([]))
       .finally(() => setLoading(false));
   }, [roomId]);
 
-  // 2. Suscribirse a mensajes nuevos en tiempo real
+  // Suscribirse a mensajes nuevos por STOMP
   useEffect(() => {
     if (!roomId) return;
-    const unsub = subscribe(WS_TOPICS.CHAT(roomId), (msg) => {
-      setMessages(prev => [...prev, msg]);
+    const unsub = wsSubscribe(WS_TOPICS.CHAT(roomId), (msg) => {
+      setMessages(prev => {
+        // Evitar duplicados por id
+        if (msg.id && prev.find(m => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
     });
     return unsub;
-  }, [roomId, subscribe]);
+  }, [roomId]);
 
-  // 3. Enviar un mensaje
   const sendMessage = useCallback((content) => {
     if (!content.trim() || !user) return;
-    send(WS_APP.CHAT(roomId), {
+    wsSend(WS_APP.CHAT(roomId), {
       sender:  user.username,
-      content,
+      content: content.trim(),
       roomId,
     });
-  }, [roomId, user, send]);
+  }, [roomId, user]);
 
   return { messages, loading, sendMessage };
 }

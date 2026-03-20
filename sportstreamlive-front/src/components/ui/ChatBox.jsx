@@ -1,17 +1,14 @@
 // src/components/ui/ChatBox.jsx
-// Chat en vivo usando STOMP. Se usa dentro de LiveRoom.
 import React, { useState, useRef, useEffect } from 'react';
 import { useChat } from '../../hooks/useChat';
 import { useAuth } from '../../context/AuthContext';
-import { Spinner } from './Spinner';
 
 export function ChatBox({ roomId }) {
-  const { user } = useAuth();
+  const { user }  = useAuth();
   const { messages, loading, sendMessage } = useChat(roomId, user);
-  const [text, setText] = useState('');
+  const [text,    setText]    = useState('');
   const bottomRef = useRef(null);
 
-  // Auto-scroll al último mensaje
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -25,25 +22,40 @@ export function ChatBox({ roomId }) {
 
   return (
     <div className="chatbox">
+      {/* Cabecera */}
       <div className="chatbox-head">
         <div className="t-dot active" />
         <span>Chat en vivo</span>
+        <span style={{ marginLeft:'auto', fontSize:'0.65rem', opacity:0.5 }}>
+          {messages.length} mensajes
+        </span>
       </div>
 
+      {/* Mensajes */}
       <div className="chatbox-msgs">
-        {loading && <Spinner text="Cargando historial…" />}
-        {messages.map((m, i) => (
-          <div
-            key={m.id || i}
-            className={`chat-msg ${m.sender === user?.username ? 'mine' : ''}`}
-          >
-            <span className="chat-sender">{m.sender}</span>
-            <span className="chat-content">{m.content}</span>
-          </div>
-        ))}
+        {loading && (
+          <p style={{ color:'var(--muted)', fontSize:'0.8rem', textAlign:'center', padding:'12px 0' }}>
+            Cargando historial…
+          </p>
+        )}
+        {!loading && messages.length === 0 && (
+          <p style={{ color:'var(--muted)', fontSize:'0.8rem', textAlign:'center', padding:'12px 0' }}>
+            Sin mensajes aún. ¡Sé el primero en escribir!
+          </p>
+        )}
+        {messages.map((m, i) => {
+          const isMe = m.sender === user?.username;
+          return (
+            <div key={m.id || i} className={`chat-msg ${isMe ? 'mine' : ''}`}>
+              <span className="chat-sender">{isMe ? 'Tú' : m.sender}</span>
+              <span className="chat-content">{m.content}</span>
+            </div>
+          );
+        })}
         <div ref={bottomRef} />
       </div>
 
+      {/* Input */}
       <form className="chatbox-form" onSubmit={handleSend}>
         <input
           type="text"
@@ -51,6 +63,7 @@ export function ChatBox({ roomId }) {
           value={text}
           onChange={e => setText(e.target.value)}
           maxLength={300}
+          autoComplete="off"
         />
         <button type="submit" className="btn-send" disabled={!text.trim()}>
           ➤

@@ -1,21 +1,26 @@
 // src/services/apiClient.js
-// Wrapper de fetch que inyecta automáticamente el JWT en cada petición.
-// Todos los servicios usan este cliente, nunca fetch directo.
-
 import { TOKEN_KEY } from '../config';
 
 export async function apiRequest(url, options = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
 
   const headers = {
-    'Content-Type': 'application/json',
+    ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
 
-  const res = await fetch(url, { ...options, headers });
+  console.log(`[API] ${options.method || 'GET'} ${url}`, { status: token ? 'con token' : 'SIN TOKEN' });
 
-  // 401 → token expirado o inválido → limpiar sesión
+  let res;
+  try {
+    res = await fetch(url, { ...options, headers });
+  } catch {
+    throw new Error('No se pudo conectar con el servidor. ¿Está el back corriendo en localhost:8080?');
+  }
+
+  console.log(`[API] → ${res.status} ${url}`);
+
   if (res.status === 401) {
     localStorage.clear();
     window.location.reload();
@@ -24,7 +29,13 @@ export async function apiRequest(url, options = {}) {
   return res;
 }
 
-export const get  = (url)         => apiRequest(url, { method: 'GET' });
-export const post = (url, body)    => apiRequest(url, { method: 'POST',   body: JSON.stringify(body) });
-export const put  = (url, body)    => apiRequest(url, { method: 'PUT',    body: JSON.stringify(body) });
-export const del  = (url)         => apiRequest(url, { method: 'DELETE' });
+export const get  = (url)        => apiRequest(url, { method: 'GET' });
+export const post = (url, body)  => apiRequest(url, {
+  method: 'POST',
+  ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+});
+export const put  = (url, body)  => apiRequest(url, {
+  method: 'PUT',
+  ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+});
+export const del  = (url)        => apiRequest(url, { method: 'DELETE' });
