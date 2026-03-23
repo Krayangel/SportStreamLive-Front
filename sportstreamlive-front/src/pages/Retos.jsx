@@ -1,14 +1,26 @@
 // src/pages/Retos.jsx
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getChallenges, createChallenge, unirseChallenge } from '../services/challengeService';
-import { updateMetas, getDashboard } from '../services/dashboardService';
+import {
+  getChallenges, createChallenge, unirseChallenge,
+  salirChallenge, registrarProgreso, getProgreso,
+} from '../services/challengeService';
+import { registrarActividad } from '../services/dashboardService';
 import { ContentCard } from '../components/ui/ContentCard';
 import { Badge }       from '../components/ui/Badge';
 import { Spinner }     from '../components/ui/Spinner';
 import { AlertBox }    from '../components/ui/AlertBox';
 
-const EMPTY_FORM = { nombre: '', descripcion: '', duracionDias: 30 };
+const EMPTY_FORM = { nombre:'', descripcion:'', duracionDias:30, dificultad:'MEDIA' };
+
+const DIF_STYLE = {
+  FACIL:   { bg:'rgba(60,245,180,0.1)',  border:'rgba(60,245,180,0.3)',  color:'var(--teal)',   label:'🟢 Fácil',   xp:50  },
+  MEDIA:   { bg:'rgba(212,245,60,0.1)',  border:'rgba(212,245,60,0.3)',  color:'var(--accent)', label:'🟡 Media',   xp:150 },
+  DIFICIL: { bg:'rgba(255,77,106,0.1)',  border:'rgba(255,77,106,0.3)',  color:'var(--danger)', label:'🔴 Difícil', xp:300 },
+};
+
+// Obtener fecha de hoy en yyyy-MM-dd
+const hoy = () => new Date().toISOString().slice(0, 10);
 
 export function Retos() {
   const { user } = useAuth();
@@ -22,17 +34,21 @@ export function Retos() {
   const [creating,   setCreating]   = useState(false);
   const [formErr,    setFormErr]    = useState('');
   const [joining,    setJoining]    = useState(null);
-  // Evidencia: { [challengeId]: texto }
-  const [evidencias, setEvidencias] = useState({});
-  const [savingEv,   setSavingEv]   = useState(null);
-  const [openEv,     setOpenEv]     = useState(null); // id del reto con panel abierto
+  const [leaving,    setLeaving]    = useState(null);
 
-  const showMsg = (text, type = 'success') => {
-    setMsg(text); setMsgType(type);
+  // Panel de progreso abierto: { id, tab:'progreso'|'historial' }
+  const [panel,      setPanel]      = useState(null);
+  const [progresos,  setProgresos]  = useState({}); // { challengeId: Map<fecha,texto> }
+  const [proTexto,   setProTexto]   = useState('');
+  const [savingPro,  setSavingPro]  = useState(false);
+
+  const showMsg = (t, type = 'success') => {
+    setMsg(t); setMsgType(type);
     setTimeout(() => setMsg(''), 3500);
   };
 
-  const loadChallenges = useCallback(async () => {
+  // ── Carga ────────────────────────────────────────────────
+  const load = useCallback(async () => {
     try {
       const data = await getChallenges();
       setChallenges(data);
@@ -43,9 +59,9 @@ export function Retos() {
     }
   }, []);
 
-  useEffect(() => { loadChallenges(); }, [loadChallenges]);
+  useEffect(() => { load(); }, [load]);
 
-  // ── Crear reto ───────────────────────────────────────────
+  // ── Crear ────────────────────────────────────────────────
   const handleCreate = async (e) => {
     e.preventDefault();
     setFormErr('');
@@ -55,7 +71,7 @@ export function Retos() {
       await createChallenge({ ...form, creatorId: user.id });
       showMsg('✅ Reto creado.');
       setShowForm(false); setForm(EMPTY_FORM);
-      await loadChallenges();
+      await load();
     } catch (err) {
       setFormErr(err.message || 'Error al crear.');
     } finally {
@@ -69,8 +85,8 @@ export function Retos() {
     setJoining(id);
     try {
       await unirseChallenge(id, user.id);
-      showMsg('✅ ¡Te uniste! Medalla otorgada.');
-      await loadChallenges();
+      showMsg('✅ ¡Te uniste! Medalla otorgada (si es tu primer reto).');
+      await load();
     } catch (err) {
       showMsg(err.message || 'Error al unirse.', 'error');
     } finally {
@@ -78,29 +94,64 @@ export function Retos() {
     }
   };
 
-  // ── Guardar evidencia ────────────────────────────────────
-  // Guardamos la evidencia en el campo "metas" del perfil del usuario
-  // concatenando el nombre del reto + la evidencia escrita.
-  const handleSaveEvidencia = async (challenge) => {
-    const texto = evidencias[challenge.id]?.trim();
-    if (!texto) { showMsg('Escribe tu evidencia antes de guardar.', 'error'); return; }
-    setSavingEv(challenge.id);
+  // ── Salir ────────────────────────────────────────────────
+  const handleSalir = async (c) => {
+    if (!window.confirm(`¿Salir del reto "${c.nombre}"?\n\nSi sales perderás la medalla asociada.`)) return;
+    setLeaving(c.id);
     try {
-      // Obtener metas actuales y agregar la evidencia
-      const profile = await getDashboard(user.id).catch(() => ({ metas: '' }));
-      const entrada = `[${new Date().toLocaleDateString('es-ES')}] Reto "${challenge.nombre}": ${texto}`;
-      const metasActuales = profile?.metas || '';
-      const nuevasMetas = metasActuales
-        ? `${metasActuales}\n${entrada}`
-        : entrada;
-      await updateMetas(user.id, nuevasMetas);
-      showMsg('✅ Evidencia guardada en tu perfil.');
-      setEvidencias(p => ({ ...p, [challenge.id]: '' }));
-      setOpenEv(null);
+      const res = await salirChallenge(c.id, user.id);
+      showMsg(res.message || '✅ Saliste del reto.');
+      if (panel?.id === c.id) setPanel(null);
+      await load();
     } catch (err) {
-      showMsg('Error al guardar evidencia.', 'error');
+      showMsg(err.message || 'Error al salir.', 'error');
     } finally {
-      setSavingEv(null);
+      setLeaving(null);
+    }
+  };
+
+  // ── Abrir panel de progreso ──────────────────────────────
+  const handleOpenPanel = async (c, tab = 'progreso') => {
+    if (panel?.id === c.id && panel?.tab === tab) { setPanel(null); return; }
+    setPanel({ id: c.id, tab });
+    setProTexto('');
+
+    // Cargar progreso si no lo tenemos
+    if (!progresos[c.id]) {
+      try {
+        const data = await getProgreso(c.id, user.id);
+        setProgresos(p => ({ ...p, [c.id]: data || {} }));
+      } catch {
+        setProgresos(p => ({ ...p, [c.id]: {} }));
+      }
+    }
+  };
+
+  // ── Guardar progreso del día ─────────────────────────────
+  const handleSavePro = async (c) => {
+    if (!proTexto.trim()) { showMsg('Escribe tu progreso.', 'error'); return; }
+    setSavingPro(true);
+    try {
+      const res = await registrarProgreso(c.id, user.id, proTexto.trim());
+      // Actualizar progreso local
+      setProgresos(p => ({
+        ...p,
+        [c.id]: { ...(p[c.id] || {}), [res.fecha]: proTexto.trim() },
+      }));
+      setProTexto('');
+      // Registrar actividad del día (actualiza racha)
+      await registrarActividad(user.id).catch(() => {});
+
+      if (res.completado) {
+        showMsg(`🏆 ¡Reto completado! Ganaste ${res.xpGanado} XP y una medalla.`);
+      } else {
+        showMsg(`✅ Progreso guardado. Día ${res.diasCompletados}/${res.diasRequeridos} (${res.porcentaje}%)`);
+      }
+      setPanel({ id: c.id, tab: 'historial' });
+    } catch (err) {
+      showMsg(err.message || 'Error al guardar.', 'error');
+    } finally {
+      setSavingPro(false);
     }
   };
 
@@ -114,14 +165,14 @@ export function Retos() {
       <div className="ph">
         <div>
           <div className="pt">Retos</div>
-          <div className="ps">Retos deportivos en SportStreamLive</div>
+          <div className="ps">Retos deportivos · 1 avance por día</div>
         </div>
         <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
           <Badge>⚔️ {unidos.length} ACTIVOS</Badge>
           <button className="btn-main"
             style={{ width:'auto', padding:'8px 14px', fontSize:'0.82rem',
               background:'var(--surface)', color:'var(--muted)', border:'1px solid var(--border)' }}
-            onClick={loadChallenges}>↻ Actualizar</button>
+            onClick={load}>↻ Actualizar</button>
           <button className="btn-main"
             style={{ width:'auto', padding:'9px 18px', fontSize:'0.85rem' }}
             onClick={() => { setShowForm(s => !s); setFormErr(''); }}>
@@ -149,11 +200,37 @@ export function Retos() {
                 value={form.descripcion} onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))}
                 disabled={creating} />
             </div>
-            <div className="fg">
-              <label>Duración (días)</label>
-              <input type="number" min="1" max="365"
-                value={form.duracionDias} onChange={e => setForm(p => ({ ...p, duracionDias: +e.target.value }))}
-                disabled={creating} />
+            <div className="form-grid-2">
+              <div className="fg">
+                <label>Duración (días) <span className="req">*</span></label>
+                <input type="number" min="1" max="365"
+                  value={form.duracionDias} onChange={e => setForm(p => ({ ...p, duracionDias: +e.target.value }))}
+                  disabled={creating} />
+              </div>
+              <div className="fg">
+                <label>Dificultad <span className="req">*</span></label>
+                <select value={form.dificultad}
+                  onChange={e => setForm(p => ({ ...p, dificultad: e.target.value }))}
+                  disabled={creating}
+                  style={{ width:'100%', background:'var(--surface)', border:'1.5px solid var(--border)',
+                    borderRadius:10, padding:'13px 15px', color:'var(--text)',
+                    fontFamily:'DM Sans,sans-serif', fontSize:'0.92rem', outline:'none' }}>
+                  <option value="FACIL">🟢 Fácil — 50 XP</option>
+                  <option value="MEDIA">🟡 Media — 150 XP</option>
+                  <option value="DIFICIL">🔴 Difícil — 300 XP</option>
+                </select>
+              </div>
+            </div>
+            {/* Preview XP */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)',
+              borderRadius:9, padding:'10px 14px', marginBottom:14, fontSize:'0.82rem',
+              color:'var(--muted)' }}>
+              ⚡ Recompensa al completar: <strong style={{ color:'var(--accent)' }}>
+                {DIF_STYLE[form.dificultad]?.xp ?? 150} XP
+              </strong>
+              {' '}· Los participantes deben marcar avance <strong style={{ color:'var(--text)' }}>
+                {form.duracionDias} días distintos
+              </strong> para completarlo.
             </div>
             <button className="btn-main" type="submit" disabled={creating} style={{ maxWidth:180 }}>
               {creating ? <><span className="spin-anim">⟳</span> Creando…</> : 'Crear reto'}
@@ -165,98 +242,224 @@ export function Retos() {
       {/* Retos donde participo */}
       {unidos.length > 0 && (
         <ContentCard title="Retos en los que participo" icon="🔥" style={{ marginBottom:14 }}>
-          {unidos.map(c => (
-            <div key={c.id}>
-              <div className="ch">
-                <div className="ch-ico">⚔️</div>
-                <div className="ch-inf">
-                  <div className="ch-name">{c.nombre}</div>
-                  <div className="ch-meta">
-                    {c.participantes?.length} participantes · {c.duracionDias} días
-                  </div>
-                  {c.descripcion && <div className="ch-meta">{c.descripcion}</div>}
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:6, alignItems:'flex-end', flexShrink:0 }}>
-                  <div className="ch-xp" style={{ background:'rgba(60,245,180,0.09)',
-                    borderColor:'rgba(60,245,180,0.2)', color:'var(--teal)' }}>
-                    UNIDO
-                  </div>
-                  <button
-                    style={{ background:'rgba(212,245,60,0.1)', border:'1px solid rgba(212,245,60,0.25)',
-                      borderRadius:7, padding:'4px 10px', fontSize:'0.7rem', color:'var(--accent)',
-                      cursor:'pointer', fontWeight:700, fontFamily:'Space Mono,monospace' }}
-                    onClick={() => setOpenEv(openEv === c.id ? null : c.id)}>
-                    📝 {openEv === c.id ? 'Cerrar' : 'Evidencia'}
-                  </button>
-                </div>
-              </div>
+          {unidos.map(c => {
+            const prog     = progresos[c.id] || c.progresoDiario?.[user.id] || {};
+            const diasComp = Object.keys(prog).length;
+            const pct      = Math.min(100, Math.round((diasComp / Math.max(c.duracionDias,1)) * 100));
+            const dif      = DIF_STYLE[c.dificultad] || DIF_STYLE.MEDIA;
+            const yaHoy    = !!prog[hoy()];
+            const completado = diasComp >= c.duracionDias;
 
-              {/* Panel de evidencia */}
-              {openEv === c.id && (
-                <div style={{ background:'var(--surface)', border:'1px solid var(--border)',
-                  borderRadius:11, padding:16, marginTop:-4, marginBottom:8 }}>
-                  <p style={{ fontSize:'0.78rem', color:'var(--muted)', marginBottom:10 }}>
-                    Registra tu progreso en el reto <strong style={{ color:'var(--text)' }}>{c.nombre}</strong>.
-                    Se guardará en tu perfil con fecha.
-                  </p>
-                  <textarea
-                    style={{ width:'100%', minHeight:90, background:'var(--card)',
-                      border:'1.5px solid var(--border)', borderRadius:9,
-                      padding:'10px 12px', color:'var(--text)',
-                      fontFamily:'DM Sans,sans-serif', fontSize:'0.88rem',
-                      resize:'vertical', outline:'none', marginBottom:10 }}
-                    placeholder={`Ej: Completé 5km en 28 minutos. Día ${new Date().getDate()} del reto.`}
-                    value={evidencias[c.id] || ''}
-                    onChange={e => setEvidencias(p => ({ ...p, [c.id]: e.target.value }))}
-                    onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
-                    onBlur={e  => (e.target.style.borderColor = 'var(--border)')}
-                  />
-                  <button className="btn-main"
-                    style={{ maxWidth:180 }}
-                    disabled={savingEv === c.id || !evidencias[c.id]?.trim()}
-                    onClick={() => handleSaveEvidencia(c)}>
-                    {savingEv === c.id
-                      ? <><span className="spin-anim">⟳</span> Guardando…</>
-                      : '💾 Guardar evidencia'}
-                  </button>
+            return (
+              <div key={c.id}>
+                <div className="ch">
+                  <div className="ch-ico">⚔️</div>
+                  <div className="ch-inf">
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                      <span className="ch-name" style={{ margin:0 }}>{c.nombre}</span>
+                      <span style={{ background:dif.bg, border:`1px solid ${dif.border}`,
+                        color:dif.color, borderRadius:6, padding:'2px 8px',
+                        fontSize:'0.65rem', fontWeight:800, flexShrink:0 }}>
+                        {dif.label}
+                      </span>
+                    </div>
+                    <div className="ch-meta">
+                      {c.participantes?.length} participantes · {c.duracionDias} días · ⚡ {c.xpRecompensa} XP
+                    </div>
+                    {c.descripcion && <div className="ch-meta">{c.descripcion}</div>}
+
+                    {/* Barra de progreso */}
+                    <div style={{ marginTop:8 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between',
+                        fontSize:'0.68rem', color:'var(--muted)', marginBottom:3,
+                        fontFamily:'Space Mono,monospace' }}>
+                        <span>Progreso: {diasComp}/{c.duracionDias} días</span>
+                        <span style={{ color: completado ? 'var(--teal)' : 'var(--accent)' }}>
+                          {completado ? '✅ COMPLETADO' : `${pct}%`}
+                        </span>
+                      </div>
+                      <div className="pb">
+                        <div className="pf" style={{ width:`${pct}%` }} />
+                      </div>
+                    </div>
+
+                    {yaHoy && !completado && (
+                      <div style={{ fontSize:'0.7rem', color:'var(--teal)', marginTop:4,
+                        fontFamily:'Space Mono,monospace' }}>
+                        ✅ Ya registraste avance hoy
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Botones */}
+                  <div style={{ display:'flex', flexDirection:'column', gap:5,
+                    alignItems:'flex-end', flexShrink:0 }}>
+                    {!completado && (
+                      <button onClick={() => handleOpenPanel(c, 'progreso')}
+                        style={{ background: yaHoy ? 'rgba(60,245,180,0.08)' : 'rgba(212,245,60,0.1)',
+                          border: `1px solid ${yaHoy ? 'rgba(60,245,180,0.25)' : 'rgba(212,245,60,0.25)'}`,
+                          borderRadius:7, padding:'4px 10px', fontSize:'0.68rem',
+                          color: yaHoy ? 'var(--teal)' : 'var(--accent)',
+                          cursor:'pointer', fontWeight:700, fontFamily:'Space Mono,monospace' }}>
+                        {yaHoy ? '✏️ Editar hoy' : '📝 Marcar avance'}
+                      </button>
+                    )}
+                    <button onClick={() => handleOpenPanel(c, 'historial')}
+                      style={{ background:'rgba(60,245,180,0.07)', border:'1px solid rgba(60,245,180,0.2)',
+                        borderRadius:7, padding:'4px 10px', fontSize:'0.68rem', color:'var(--teal)',
+                        cursor:'pointer', fontWeight:700, fontFamily:'Space Mono,monospace' }}>
+                      📋 Historial
+                    </button>
+                    <button onClick={() => handleSalir(c)}
+                      disabled={leaving === c.id}
+                      style={{ background:'rgba(255,77,106,0.08)', border:'1px solid rgba(255,77,106,0.25)',
+                        borderRadius:7, padding:'4px 10px', fontSize:'0.68rem', color:'var(--danger)',
+                        cursor: leaving === c.id ? 'wait' : 'pointer',
+                        fontWeight:700, fontFamily:'Space Mono,monospace',
+                        opacity: leaving === c.id ? 0.6 : 1 }}>
+                      {leaving === c.id ? '…' : '🚪 Salir'}
+                    </button>
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {/* Panel expandible */}
+                {panel?.id === c.id && (
+                  <div style={{ background:'var(--surface)', border:'1px solid var(--border)',
+                    borderRadius:11, padding:16, marginBottom:8 }}>
+
+                    {/* Tab: Registrar avance */}
+                    {panel.tab === 'progreso' && !completado && (
+                      <>
+                        <p style={{ fontSize:'0.8rem', color:'var(--muted)', marginBottom:8 }}>
+                          {yaHoy
+                            ? <>✏️ Edita tu avance de hoy (<strong style={{ color:'var(--text)' }}>{hoy()}</strong>):</>
+                            : <>📝 Registra tu avance de hoy (<strong style={{ color:'var(--text)' }}>{hoy()}</strong>):</>
+                          }
+                        </p>
+                        <p style={{ fontSize:'0.73rem', color:'var(--muted)', marginBottom:10 }}>
+                          ⚠️ Solo puedes marcar <strong style={{ color:'var(--text)' }}>1 día por día real</strong>.
+                          El reto requiere {c.duracionDias} días distintos para completarse.
+                          {yaHoy && ' Puedes editar la entrada de hoy.'}
+                        </p>
+                        {yaHoy && (
+                          <div style={{ background:'rgba(60,245,180,0.07)', border:'1px solid rgba(60,245,180,0.2)',
+                            borderRadius:8, padding:'8px 12px', marginBottom:10,
+                            fontSize:'0.78rem', color:'var(--teal)' }}>
+                            Avance actual: <em>{(progresos[c.id] || {})[hoy()]}</em>
+                          </div>
+                        )}
+                        <textarea
+                          style={{ width:'100%', minHeight:80, background:'var(--card)',
+                            border:'1.5px solid var(--border)', borderRadius:9,
+                            padding:'10px 12px', color:'var(--text)',
+                            fontFamily:'DM Sans,sans-serif', fontSize:'0.88rem',
+                            resize:'vertical', outline:'none', marginBottom:10, transition:'border-color 0.2s' }}
+                          placeholder={`Ej: Completé 5km en 28 min. Día ${diasComp + (yaHoy ? 0 : 1)}.`}
+                          value={proTexto}
+                          onChange={e => setProTexto(e.target.value)}
+                          onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
+                          onBlur={e  => (e.target.style.borderColor = 'var(--border)')}
+                        />
+                        <div style={{ display:'flex', gap:10 }}>
+                          <button className="btn-main" style={{ maxWidth:180 }}
+                            disabled={savingPro || !proTexto.trim()}
+                            onClick={() => handleSavePro(c)}>
+                            {savingPro
+                              ? <><span className="spin-anim">⟳</span> Guardando…</>
+                              : yaHoy ? '✏️ Actualizar' : '💾 Guardar avance'}
+                          </button>
+                          <button onClick={() => handleOpenPanel(c, 'historial')}
+                            style={{ background:'var(--surface)', border:'1px solid var(--border)',
+                              borderRadius:9, padding:'8px 14px', color:'var(--muted)',
+                              cursor:'pointer', fontSize:'0.82rem' }}>
+                            Ver historial
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Tab: Historial */}
+                    {panel.tab === 'historial' && (
+                      <>
+                        <div style={{ display:'flex', justifyContent:'space-between',
+                          alignItems:'center', marginBottom:12 }}>
+                          <p style={{ fontSize:'0.8rem', color:'var(--muted)' }}>
+                            Historial de avances — <strong style={{ color:'var(--text)' }}>{c.nombre}</strong>
+                          </p>
+                          {!completado && (
+                            <button onClick={() => setPanel({ id: c.id, tab: 'progreso' })}
+                              style={{ background:'rgba(212,245,60,0.1)', border:'1px solid rgba(212,245,60,0.25)',
+                                borderRadius:7, padding:'4px 10px', fontSize:'0.68rem', color:'var(--accent)',
+                                cursor:'pointer', fontWeight:700, fontFamily:'Space Mono,monospace' }}>
+                              {yaHoy ? '✏️ Editar hoy' : '+ Nuevo avance'}
+                            </button>
+                          )}
+                        </div>
+                        {Object.keys(progresos[c.id] || {}).length === 0 ? (
+                          <p style={{ color:'var(--muted)', fontSize:'0.82rem' }}>
+                            Sin avances aún. ¡Registra tu primer día!
+                          </p>
+                        ) : (
+                          Object.entries(progresos[c.id] || {})
+                            .sort(([a], [b]) => b.localeCompare(a))
+                            .map(([fecha, texto]) => (
+                              <div key={fecha} style={{ background:'var(--card)',
+                                border:`1px solid ${fecha === hoy() ? 'rgba(212,245,60,0.3)' : 'var(--border)'}`,
+                                borderRadius:9, padding:'10px 14px', marginBottom:8 }}>
+                                <div style={{ fontSize:'0.68rem', color: fecha === hoy() ? 'var(--accent)' : 'var(--muted)',
+                                  fontFamily:'Space Mono,monospace', marginBottom:4, fontWeight:700 }}>
+                                  {fecha === hoy() ? '📅 HOY' : `📅 ${fecha}`}
+                                </div>
+                                <div style={{ fontSize:'0.85rem', lineHeight:1.4 }}>{texto}</div>
+                              </div>
+                            ))
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </ContentCard>
       )}
 
       {/* Retos disponibles */}
       <ContentCard title="Disponibles" icon="🎮">
         {disponibles.length === 0 && unidos.length === 0 && (
-          <p style={{ color:'var(--muted)', fontSize:'0.85rem' }}>
-            No hay retos aún. ¡Crea el primero!
-          </p>
+          <p style={{ color:'var(--muted)', fontSize:'0.85rem' }}>No hay retos. ¡Crea el primero!</p>
         )}
         {disponibles.length === 0 && unidos.length > 0 && (
-          <p style={{ color:'var(--muted)', fontSize:'0.85rem' }}>
-            Ya estás en todos los retos disponibles.
-          </p>
+          <p style={{ color:'var(--muted)', fontSize:'0.85rem' }}>Ya estás en todos los retos disponibles.</p>
         )}
-        {disponibles.map(c => (
-          <div className="ch" key={c.id}>
-            <div className="ch-ico">🏆</div>
-            <div className="ch-inf">
-              <div className="ch-name">{c.nombre}</div>
-              <div className="ch-meta">
-                {c.participantes?.length} participantes · {c.duracionDias} días
+        {disponibles.map(c => {
+          const dif = DIF_STYLE[c.dificultad] || DIF_STYLE.MEDIA;
+          return (
+            <div className="ch" key={c.id}>
+              <div className="ch-ico">🏆</div>
+              <div className="ch-inf">
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                  <span className="ch-name" style={{ margin:0 }}>{c.nombre}</span>
+                  <span style={{ background:dif.bg, border:`1px solid ${dif.border}`,
+                    color:dif.color, borderRadius:6, padding:'2px 8px',
+                    fontSize:'0.65rem', fontWeight:800, flexShrink:0 }}>
+                    {dif.label}
+                  </span>
+                </div>
+                <div className="ch-meta">
+                  {c.participantes?.length} participantes · {c.duracionDias} días · ⚡ {c.xpRecompensa} XP
+                </div>
+                {c.descripcion && <div className="ch-meta">{c.descripcion}</div>}
               </div>
-              {c.descripcion && <div className="ch-meta">{c.descripcion}</div>}
+              <button className="ch-xp"
+                style={{ cursor: joining === c.id ? 'wait' : 'pointer',
+                  border:'1px solid var(--accent)', opacity: joining === c.id ? 0.6 : 1 }}
+                onClick={() => handleUnirse(c.id)} disabled={!!joining}>
+                {joining === c.id ? '…' : 'UNIRSE'}
+              </button>
             </div>
-            <button className="ch-xp"
-              style={{ cursor: joining === c.id ? 'wait' : 'pointer',
-                border:'1px solid var(--accent)', opacity: joining === c.id ? 0.6 : 1 }}
-              onClick={() => handleUnirse(c.id)}
-              disabled={!!joining}>
-              {joining === c.id ? '…' : 'UNIRSE'}
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </ContentCard>
     </div>
   );

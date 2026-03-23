@@ -1,38 +1,67 @@
 // src/pages/Metas.jsx
-import React, { useEffect, useState } from 'react';
-import { useAuth }       from '../context/AuthContext';
-import { getDashboard, updateMetas } from '../services/dashboardService';
-import { ContentCard }   from '../components/ui/ContentCard';
-import { Badge }         from '../components/ui/Badge';
-import { Spinner }       from '../components/ui/Spinner';
-import { AlertBox }      from '../components/ui/AlertBox';
+// Metas 100% privadas — solo las ve el dueño, nadie más.
+// Son distintas a los retos: son objetivos personales sin duración ni XP.
+import React, { useEffect, useState, useCallback } from 'react';
+import { useAuth }   from '../context/AuthContext';
+import { getMetas, addMeta, deleteMeta } from '../services/dashboardService';
+import { ContentCard } from '../components/ui/ContentCard';
+import { AlertBox }    from '../components/ui/AlertBox';
+import { Spinner }     from '../components/ui/Spinner';
 
 export function Metas() {
   const { user }  = useAuth();
-  const [profile, setProfile] = useState(null);
+  const [metas,   setMetas]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [text,    setText]    = useState('');
+  const [texto,   setTexto]   = useState('');
+  const [saving,  setSaving]  = useState(false);
+  const [deleting,setDeleting]= useState(null);
   const [msg,     setMsg]     = useState('');
+  const [msgType, setMsgType] = useState('success');
 
-  useEffect(() => {
+  const showMsg = (t, type = 'success') => {
+    setMsg(t); setMsgType(type);
+    setTimeout(() => setMsg(''), 3000);
+  };
+
+  const load = useCallback(async () => {
     if (!user?.id) return;
-    getDashboard(user.id)
-      .then(p => { setProfile(p); setText(p?.metas || ''); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    try {
+      const data = await getMetas(user.id);
+      setMetas(Array.isArray(data) ? data : []);
+    } catch { setMetas([]); }
+    finally  { setLoading(false); }
   }, [user?.id]);
 
-  const handleSave = async () => {
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    if (!texto.trim()) return;
+    setSaving(true);
     try {
-      const updated = await updateMetas(user.id, text);
-      setProfile(updated);
-      setEditing(false);
-      setMsg('✅ Metas guardadas.');
-    } catch {
-      setMsg('❌ Error al guardar.');
+      await addMeta(user.id, texto.trim());
+      setTexto('');
+      showMsg('✅ Meta agregada.');
+      await load();
+    } catch (err) {
+      showMsg(err.message || 'Error al agregar.', 'error');
+    } finally {
+      setSaving(false);
     }
-    setTimeout(() => setMsg(''), 3000);
+  };
+
+  const handleDelete = async (index) => {
+    if (!window.confirm('¿Eliminar esta meta?')) return;
+    setDeleting(index);
+    try {
+      await deleteMeta(user.id, index);
+      showMsg('✅ Meta eliminada.');
+      await load();
+    } catch (err) {
+      showMsg(err.message || 'Error al eliminar.', 'error');
+    } finally {
+      setDeleting(null);
+    }
   };
 
   if (loading) return <div className="page"><Spinner text="Cargando metas…" /></div>;
@@ -42,76 +71,80 @@ export function Metas() {
       <div className="ph">
         <div>
           <div className="pt">Mis Metas</div>
-          <div className="ps">Guardadas en el servidor</div>
+          <div className="ps">Solo tú puedes ver estas metas · 100% privadas</div>
         </div>
-        <Badge>🎯 RACHA {profile?.racha ?? 0} DÍAS</Badge>
+        <div style={{ display:'flex', alignItems:'center', gap:8,
+          background:'var(--surface)', border:'1px solid var(--border)',
+          borderRadius:999, padding:'6px 14px', fontSize:'0.7rem',
+          fontFamily:'Space Mono,monospace', color:'var(--muted)' }}>
+          🔒 privadas
+        </div>
       </div>
 
-      {msg && <AlertBox type={msg.startsWith('✅') ? 'success' : 'error'} message={msg} />}
+      {msg && <AlertBox type={msgType === 'error' ? 'error' : 'success'} message={msg} />}
 
-      <ContentCard title="Mis metas personales" icon="🎯">
-        {!editing ? (
-          <>
-            <p style={{ color: profile?.metas ? 'var(--text)' : 'var(--muted)',
-              fontSize: '0.9rem', lineHeight: 1.7, marginBottom: 16 }}>
-              {profile?.metas || 'Sin metas registradas aún. Haz clic en "Editar" para agregar.'}
-            </p>
-            <button
-              className="btn-main"
-              style={{ maxWidth: 140 }}
-              onClick={() => setEditing(true)}
-            >
-              ✏️ Editar
-            </button>
-          </>
-        ) : (
-          <>
-            <textarea
-              style={{
-                width: '100%', minHeight: 140,
-                background: 'var(--surface)', border: '1.5px solid var(--border)',
-                borderRadius: 10, padding: '12px 14px', color: 'var(--text)',
-                fontFamily: 'DM Sans, sans-serif', fontSize: '0.9rem',
-                resize: 'vertical', outline: 'none', marginBottom: 14,
-              }}
-              value={text}
-              onChange={e => setText(e.target.value)}
-              placeholder="Describe tus metas deportivas…"
-              onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
-              onBlur={e  => (e.target.style.borderColor = 'var(--border)')}
-            />
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn-main" style={{ maxWidth: 130 }} onClick={handleSave}>
-                💾 Guardar
-              </button>
-              <button
-                className="btn-main"
-                style={{ maxWidth: 130, background: 'var(--surface)',
-                  color: 'var(--muted)', border: '1px solid var(--border)' }}
-                onClick={() => { setEditing(false); setText(profile?.metas || ''); }}
-              >
-                Cancelar
-              </button>
-            </div>
-          </>
-        )}
+      {/* Agregar meta */}
+      <ContentCard title="Agregar meta" icon="➕" style={{ marginBottom:16 }}>
+        <p style={{ fontSize:'0.8rem', color:'var(--muted)', marginBottom:12 }}>
+          Las metas son objetivos personales que solo tú puedes ver. Son diferentes a los retos.
+        </p>
+        <form onSubmit={handleAdd} style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+          <input
+            type="text"
+            placeholder="Ej: Correr 5km sin parar…"
+            value={texto}
+            onChange={e => setTexto(e.target.value)}
+            disabled={saving}
+            style={{ flex:1, minWidth:200, background:'var(--surface)',
+              border:'1.5px solid var(--border)', borderRadius:10,
+              padding:'12px 14px', color:'var(--text)',
+              fontFamily:'DM Sans,sans-serif', fontSize:'0.9rem', outline:'none' }}
+            onFocus={e  => (e.target.style.borderColor = 'var(--accent)')}
+            onBlur={e   => (e.target.style.borderColor = 'var(--border)')}
+          />
+          <button className="btn-main" type="submit"
+            disabled={saving || !texto.trim()}
+            style={{ width:'auto', padding:'12px 20px' }}>
+            {saving ? <><span className="spin-anim">⟳</span> Guardando…</> : '+ Agregar'}
+          </button>
+        </form>
       </ContentCard>
 
-      <ContentCard title="Estadísticas" icon="📊" style={{ marginTop: 14 }}>
-        <div style={{ display: 'flex', gap: 24 }}>
-          {[
-            ['🔥', 'Racha',  `${profile?.racha ?? 0} días`],
-            ['⚡', 'Puntos', `${profile?.puntosTotales ?? 0} XP`],
-          ].map(([ico, l, v]) => (
-            <div key={l} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '1.6rem' }}>{ico}</div>
-              <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem',
-                color: 'var(--accent)' }}>{v}</div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--muted)',
-                textTransform: 'uppercase', letterSpacing: 1 }}>{l}</div>
-            </div>
-          ))}
-        </div>
+      {/* Lista de metas */}
+      <ContentCard title={`Mis metas (${metas.length})`} icon="🎯">
+        {metas.length === 0 && (
+          <p style={{ color:'var(--muted)', fontSize:'0.85rem' }}>
+            Sin metas aún. Agrega tu primera meta arriba.
+          </p>
+        )}
+        {metas.map((m, i) => (
+          <div key={i} style={{
+            display:'flex', alignItems:'flex-start', gap:12,
+            background:'var(--surface)', border:'1px solid var(--border)',
+            borderRadius:11, padding:'14px 16px', marginBottom:8,
+            transition:'border-color 0.2s',
+          }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(212,245,60,0.2)'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+          >
+            <span style={{ color:'var(--accent)', fontSize:'0.9rem',
+              marginTop:1, flexShrink:0, fontWeight:800 }}>
+              {i + 1}.
+            </span>
+            <span style={{ flex:1, fontSize:'0.9rem', lineHeight:1.5 }}>{m}</span>
+            <button
+              onClick={() => handleDelete(i)}
+              disabled={deleting === i}
+              style={{ background:'transparent', border:'none',
+                color: deleting === i ? 'var(--muted)' : 'var(--danger)',
+                cursor: deleting === i ? 'wait' : 'pointer',
+                fontSize:'1rem', padding:'2px 4px', flexShrink:0,
+                opacity: deleting === i ? 0.5 : 1, transition:'opacity 0.2s' }}
+              title="Eliminar meta">
+              {deleting === i ? '…' : '✕'}
+            </button>
+          </div>
+        ))}
       </ContentCard>
     </div>
   );
