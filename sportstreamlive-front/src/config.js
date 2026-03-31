@@ -2,8 +2,17 @@
 //  src/config.js  —  Centro de configuración del frontend
 // ─────────────────────────────────────────────────────────────
 
-export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
-export const WS_URL  = process.env.REACT_APP_WS_URL  || 'http://localhost:8080/ws';
+const isBrowser = typeof window !== 'undefined';
+const defaultOrigin = isBrowser
+  ? window.location.origin
+  : 'http://localhost:8080';
+
+// El WS se construye desde API_URL por seguridad y coherencia entre entornos.
+const apiBase = process.env.REACT_APP_API_URL || defaultOrigin;
+const wsDefault = process.env.REACT_APP_WS_URL || `${new URL('/ws', apiBase).toString()}`;
+
+export const API_URL = apiBase;
+export const WS_URL = wsDefault;
 
 /** Destinos STOMP para SUSCRIBIRSE (escuchar) */
 export const WS_TOPICS = {
