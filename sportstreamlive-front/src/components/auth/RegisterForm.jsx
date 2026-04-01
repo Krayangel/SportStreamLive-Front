@@ -1,11 +1,8 @@
 // src/components/auth/RegisterForm.jsx
-// El back espera: { username, email, password }
-// username = nombre de usuario único (no nombre completo)
-
 import React, { useState } from 'react';
-import { ProgressBar }   from '../ui/ProgressBar';
-import { AlertBox }      from '../ui/AlertBox';
-import { useAuth }       from '../../context/AuthContext';
+import { ProgressBar }      from '../ui/ProgressBar';
+import { AlertBox }         from '../ui/AlertBox';
+import { useAuth }          from '../../context/AuthContext';
 import { validateRegister } from '../../utils/validators';
 
 export function RegisterForm({ onSuccess }) {
@@ -15,7 +12,8 @@ export function RegisterForm({ onSuccess }) {
   });
   const [localErr, setLocalErr] = useState('');
 
-  const set = (field) => (e) => setForm(p => ({ ...p, [field]: e.target.value }));
+  const set = (field) => (e) =>
+    setForm(p => ({ ...p, [field]: e.target.value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -82,7 +80,9 @@ export function RegisterForm({ onSuccess }) {
         )}
 
         <button className="btn-main" disabled={loading} type="submit">
-          {loading ? <><span className="spin-anim">⟳</span> Creando cuenta…</> : 'Crear cuenta'}
+          {loading
+            ? <><span className="spin-anim">⟳</span> Creando cuenta…</>
+            : 'Crear cuenta'}
         </button>
 
         {loading && (

@@ -19,13 +19,15 @@ export function Perfil() {
       getBadges(user.id).catch(() => []),
     ]).then(([p, b]) => {
       setProfile(p);
-      setBadges(b);
+      setBadges(Array.isArray(b) ? b : []);
     }).finally(() => setLoading(false));
   }, [user?.id]);
 
   if (loading) return <div className="page"><Spinner text="Cargando perfil…" /></div>;
 
-  const initials = user?.username?.slice(0, 2).toUpperCase() || '??';
+  const initials  = user?.username?.slice(0, 2).toUpperCase() || '??';
+  const racha     = profile?.rachaActual    ?? profile?.racha         ?? 0;
+  const xp        = profile?.xpTotal        ?? profile?.puntosTotales ?? 0;
 
   return (
     <div className="page">
@@ -43,9 +45,9 @@ export function Perfil() {
           <div className="prof-sp">⚡ SportStreamLive</div>
           <div className="prof-row">
             {[
-              [profile?.racha ?? 0,        'Racha'],
-              [profile?.puntosTotales ?? 0, 'XP'],
-              [badges.length,               'Logros'],
+              [racha,        'Racha'],
+              [xp,           'XP'],
+              [badges.length,'Logros'],
             ].map(([v, l]) => (
               <div className="pstat" key={l}>
                 <div className="pv">{v}</div>
@@ -59,10 +61,10 @@ export function Perfil() {
       <div className="cg">
         <ContentCard title="Información de cuenta" icon="👤">
           {[
-            ['Usuario',  user?.username],
-            ['Correo',   user?.email],
-            ['Racha',    `${profile?.racha ?? 0} días`],
-            ['Puntos',   `${profile?.puntosTotales ?? 0} XP`],
+            ['Usuario', user?.username],
+            ['Correo',  user?.email],
+            ['Racha',   `${racha} días`],
+            ['XP',      `${xp} puntos`],
           ].map(([l, v]) => (
             <div className="info-row" key={l}>
               <div className="info-lbl">{l}</div>
@@ -78,14 +80,14 @@ export function Perfil() {
           {badges.length === 0
             ? <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Sin medallas aún.</p>
             : badges.slice(0, 6).map(b => (
-              <div className="ch" key={b.id} style={{ cursor: 'default' }}>
-                <div className="ch-ico">🥇</div>
-                <div className="ch-inf">
-                  <div className="ch-name">{b.nombre}</div>
-                  <div className="ch-meta">{b.descripcion}</div>
+                <div className="ch" key={b.id} style={{ cursor: 'default' }}>
+                  <div className="ch-ico">🥇</div>
+                  <div className="ch-inf">
+                    <div className="ch-name">{b.nombre}</div>
+                    <div className="ch-meta">{b.descripcion}</div>
+                  </div>
                 </div>
-              </div>
-            ))
+              ))
           }
         </ContentCard>
       </div>

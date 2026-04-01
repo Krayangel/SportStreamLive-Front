@@ -3,10 +3,11 @@ import { ENDPOINTS } from '../config';
 import { get, post } from './apiClient';
 
 export const startStream = async (sid, uid) => {
-  const res = await post(`${ENDPOINTS.STREAM_START(sid)}?userId=${encodeURIComponent(uid)}`);
+  const res = await post(
+    `${ENDPOINTS.STREAM_START(sid)}?userId=${encodeURIComponent(uid)}`
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    // ALREADY_ACTIVE no es error — el stream ya corría
     if (data.status === 'ALREADY_ACTIVE') return data;
     throw new Error(data.message || 'Error al iniciar stream');
   }
@@ -14,7 +15,9 @@ export const startStream = async (sid, uid) => {
 };
 
 export const stopStream = async (sid, uid) => {
-  const res = await post(`${ENDPOINTS.STREAM_STOP(sid)}?userId=${encodeURIComponent(uid)}`);
+  const res = await post(
+    `${ENDPOINTS.STREAM_STOP(sid)}?userId=${encodeURIComponent(uid)}`
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.message || 'Error al detener stream');

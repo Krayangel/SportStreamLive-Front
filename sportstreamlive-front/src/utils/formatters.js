@@ -1,5 +1,4 @@
 // src/utils/formatters.js
-
 export const formatDate = (iso) =>
   new Date(iso).toLocaleDateString('es-ES', {
     day: '2-digit', month: 'short', year: 'numeric',

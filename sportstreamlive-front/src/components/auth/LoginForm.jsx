@@ -1,8 +1,8 @@
 // src/components/auth/LoginForm.jsx
 import React, { useState } from 'react';
-import { ProgressBar } from '../ui/ProgressBar';
-import { AlertBox }    from '../ui/AlertBox';
-import { useAuth }     from '../../context/AuthContext';
+import { ProgressBar }   from '../ui/ProgressBar';
+import { AlertBox }      from '../ui/AlertBox';
+import { useAuth }       from '../../context/AuthContext';
 import { validateLogin } from '../../utils/validators';
 
 export function LoginForm() {
@@ -54,7 +54,9 @@ export function LoginForm() {
         )}
 
         <button className="btn-main" disabled={loading} type="submit">
-          {loading ? <><span className="spin-anim">⟳</span> Verificando…</> : 'Entrar'}
+          {loading
+            ? <><span className="spin-anim">⟳</span> Verificando…</>
+            : 'Entrar'}
         </button>
 
         {loading && (

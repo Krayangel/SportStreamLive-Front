@@ -34,13 +34,11 @@ export function Eventos() {
 
   const setField = (f) => (e) => setForm(p => ({ ...p, [f]: e.target.value }));
 
-  // ── Carga de eventos ─────────────────────────────────────
   const loadEvents = useCallback(async () => {
     try {
       const evts = await getEvents();
-      setEvents(evts);
-      // Verificar streams activos en paralelo
-      if (evts.length > 0) {
+      setEvents(Array.isArray(evts) ? evts : []);
+      if (evts?.length > 0) {
         const checks = await Promise.allSettled(
           evts.map(e =>
             isStreamActive(`event-${e.id}`)
@@ -63,13 +61,12 @@ export function Eventos() {
 
   useEffect(() => { loadEvents(); }, [loadEvents]);
 
-  // ── Crear evento ─────────────────────────────────────────
   const handleCreate = async (e) => {
     e.preventDefault();
     setFormErr('');
     if (!form.titulo.trim())      { setFormErr('El título es obligatorio.');         return; }
     if (!form.descripcion.trim()) { setFormErr('La descripción es obligatoria.');    return; }
-    if (!form.fecha)              { setFormErr('La fecha y hora son obligatorias.');  return; }
+    if (!form.fecha)              { setFormErr('La fecha y hora son obligatorias.'); return; }
     setCreating(true);
     try {
       await createEvent({
@@ -86,7 +83,6 @@ export function Eventos() {
     }
   };
 
-  // ── Inscribirse ───────────────────────────────────────────
   const handleInscribir = async (eventId) => {
     if (!user?.id || joining) return;
     setJoining(eventId);
@@ -101,7 +97,6 @@ export function Eventos() {
     }
   };
 
-  // ── Sala live ─────────────────────────────────────────────
   if (liveEvt) {
     return (
       <LiveRoom
@@ -120,14 +115,14 @@ export function Eventos() {
           <div className="pt">Eventos</div>
           <div className="ps">Deportivos en SportStreamLive</div>
         </div>
-        <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <Badge>📅 {events.length} EVENTOS</Badge>
           <button className="btn-main"
-            style={{ width:'auto', padding:'8px 14px', fontSize:'0.82rem',
-              background:'var(--surface)', color:'var(--muted)', border:'1px solid var(--border)' }}
+            style={{ width: 'auto', padding: '8px 14px', fontSize: '0.82rem',
+              background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}
             onClick={loadEvents}>↻ Actualizar</button>
           <button className="btn-main"
-            style={{ width:'auto', padding:'9px 18px', fontSize:'0.85rem' }}
+            style={{ width: 'auto', padding: '9px 18px', fontSize: '0.85rem' }}
             onClick={() => { setShowForm(s => !s); setFormErr(''); }}>
             {showForm ? '✕ Cancelar' : '+ Crear evento'}
           </button>
@@ -136,9 +131,8 @@ export function Eventos() {
 
       {msg && <AlertBox type={msgType === 'error' ? 'error' : 'success'} message={msg} />}
 
-      {/* Formulario */}
       {showForm && (
-        <ContentCard title="Nuevo evento" icon="➕" style={{ marginBottom:18 }}>
+        <ContentCard title="Nuevo evento" icon="➕" style={{ marginBottom: 18 }}>
           <form onSubmit={handleCreate}>
             {formErr && <AlertBox type="error" message={formErr} />}
             <div className="fg">
@@ -155,9 +149,11 @@ export function Eventos() {
               <div className="fg">
                 <label>Tipo <span className="req">*</span></label>
                 <select value={form.tipo} onChange={setField('tipo')} disabled={creating}
-                  style={{ width:'100%', background:'var(--surface)', border:'1.5px solid var(--border)',
-                    borderRadius:10, padding:'13px 15px', color:'var(--text)',
-                    fontFamily:'DM Sans,sans-serif', fontSize:'0.92rem', outline:'none' }}>
+                  style={{
+                    width: '100%', background: 'var(--surface)', border: '1.5px solid var(--border)',
+                    borderRadius: 10, padding: '13px 15px', color: 'var(--text)',
+                    fontFamily: 'DM Sans,sans-serif', fontSize: '0.92rem', outline: 'none',
+                  }}>
                   <option value="PRESENCIAL">🏟️ Presencial</option>
                   <option value="VIRTUAL">💻 Virtual</option>
                 </select>
@@ -166,29 +162,27 @@ export function Eventos() {
                 <label>Fecha y hora <span className="req">*</span></label>
                 <input type="datetime-local" value={form.fecha}
                   onChange={setField('fecha')} disabled={creating}
-                  style={{ colorScheme:'dark' }} />
+                  style={{ colorScheme: 'dark' }} />
               </div>
             </div>
             <button className="btn-main" type="submit" disabled={creating}
-              style={{ maxWidth:200, marginTop:6 }}>
+              style={{ maxWidth: 200, marginTop: 6 }}>
               {creating ? <><span className="spin-anim">⟳</span> Creando…</> : '✅ Crear evento'}
             </button>
           </form>
         </ContentCard>
       )}
 
-      {/* Lista */}
       <ContentCard title="Calendario deportivo" icon="🗓️">
         {events.length === 0 && (
-          <p style={{ color:'var(--muted)', fontSize:'0.85rem' }}>
+          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
             No hay eventos aún. ¡Crea el primero!
           </p>
         )}
         {events.map(e => {
-          const inscrito  = e.asistentes?.includes(user?.id);
-          const streamOn  = actives[e.id];
-          const esCreador = e.creatorId === user?.id;
-          // Puede entrar al live si: es el creador O está inscrito
+          const inscrito    = e.asistentes?.includes(user?.id);
+          const streamOn    = actives[e.id];
+          const esCreador   = e.creatorId === user?.id;
           const puedeEntrar = esCreador || inscrito;
 
           return (
@@ -196,60 +190,53 @@ export function Eventos() {
               <div className="ev-dt">
                 {e.tipo} · {formatDateTime(e.fecha)}
                 {esCreador && (
-                  <span style={{ marginLeft:10, background:'rgba(212,245,60,0.12)',
-                    color:'var(--accent)', borderRadius:6, padding:'2px 8px',
-                    fontSize:'0.65rem', fontWeight:800 }}>TU EVENTO</span>
+                  <span style={{
+                    marginLeft: 10, background: 'rgba(212,245,60,0.12)',
+                    color: 'var(--accent)', borderRadius: 6, padding: '2px 8px',
+                    fontSize: '0.65rem', fontWeight: 800,
+                  }}>TU EVENTO</span>
                 )}
                 {streamOn && (
-                  <span style={{ marginLeft:8, background:'rgba(255,77,106,0.15)',
-                    color:'var(--danger)', borderRadius:6, padding:'2px 8px',
-                    fontSize:'0.65rem', fontWeight:800, animation:'pulse 2s infinite' }}>
-                    🔴 EN VIVO
-                  </span>
+                  <span style={{
+                    marginLeft: 8, background: 'rgba(255,77,106,0.15)',
+                    color: 'var(--danger)', borderRadius: 6, padding: '2px 8px',
+                    fontSize: '0.65rem', fontWeight: 800, animation: 'pulse 2s infinite',
+                  }}>🔴 EN VIVO</span>
                 )}
               </div>
               <div className="ev-name">{e.titulo}</div>
               <div className="ev-det">{e.descripcion}</div>
 
-              <div style={{ display:'flex', gap:10, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
-
-                {/* Inscribirse — solo si no es el creador y no está inscrito */}
+              <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                 {!esCreador && !inscrito && (
                   <button className="btn-main"
-                    style={{ width:'auto', padding:'8px 16px', fontSize:'0.82rem',
+                    style={{ width: 'auto', padding: '8px 16px', fontSize: '0.82rem',
                       opacity: joining === e.id ? 0.6 : 1 }}
                     onClick={() => handleInscribir(e.id)}
                     disabled={!!joining}>
                     {joining === e.id ? <><span className="spin-anim">⟳</span> Inscribiendo…</> : '📋 Inscribirme'}
                   </button>
                 )}
-
-                {/* Badge inscrito */}
                 {!esCreador && inscrito && (
-                  <span style={{ fontSize:'0.8rem', color:'var(--teal)', fontWeight:700 }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--teal)', fontWeight: 700 }}>
                     ✅ Inscrito
                   </span>
                 )}
-
-                {/* Entrar al live — si hay stream activo y puede entrar */}
                 {puedeEntrar && streamOn && (
                   <button className="btn-main"
-                    style={{ width:'auto', padding:'8px 16px', fontSize:'0.82rem',
-                      background:'var(--danger)', color:'#fff' }}
+                    style={{ width: 'auto', padding: '8px 16px', fontSize: '0.82rem',
+                      background: 'var(--danger)', color: '#fff' }}
                     onClick={() => setLiveEvt(e)}>
                     🔴 Entrar al Live
                   </button>
                 )}
-
-                {/* Iniciar live — solo el creador cuando no hay stream */}
                 {esCreador && !streamOn && (
                   <button className="btn-main"
-                    style={{ width:'auto', padding:'8px 16px', fontSize:'0.82rem' }}
+                    style={{ width: 'auto', padding: '8px 16px', fontSize: '0.82rem' }}
                     onClick={() => setLiveEvt(e)}>
                     🎙️ Iniciar Live
                   </button>
                 )}
-
               </div>
             </div>
           );

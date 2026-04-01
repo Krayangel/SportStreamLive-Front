@@ -2,21 +2,20 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 
+const NAV_ITEMS = [
+  { id: 'dashboard', ico: '📊', label: 'Dashboard',  section: 'Principal' },
+  { id: 'metas',     ico: '🎯', label: 'Mis Metas',  section: null },
+  { id: 'logros',    ico: '🏆', label: 'Logros',     section: null },
+  { id: 'retos',     ico: '⚔️', label: 'Retos',      section: 'Comunidad' },
+  { id: 'eventos',   ico: '📅', label: 'Eventos',    section: null },
+  { id: 'perfil',    ico: '👤', label: 'Mi Perfil',  section: 'Cuenta' },
+];
+
 export function Sidebar({ page, onNavigate, mobOpen, setMobOpen }) {
   const { user, logout } = useAuth();
-
   const initials = user?.username
     ? user.username.slice(0, 2).toUpperCase()
     : '??';
-
-  const navItems = [
-    { id: 'dashboard', ico: '📊', label: 'Dashboard',   section: 'Principal' },
-    { id: 'metas',     ico: '🎯', label: 'Mis Metas',   section: null },
-    { id: 'logros',    ico: '🏆', label: 'Logros',      section: null },
-    { id: 'retos',     ico: '⚔️', label: 'Retos',       section: 'Comunidad' },
-    { id: 'eventos',   ico: '📅', label: 'Eventos',     section: null },
-    { id: 'perfil',    ico: '👤', label: 'Mi Perfil',   section: 'Cuenta' },
-  ];
 
   return (
     <aside className={`sidebar${mobOpen ? ' mob-open' : ''}`}>
@@ -30,7 +29,7 @@ export function Sidebar({ page, onNavigate, mobOpen, setMobOpen }) {
         </div>
       </div>
 
-      {navItems.map((item, i) => (
+      {NAV_ITEMS.map((item, i) => (
         <React.Fragment key={item.id}>
           {item.section && (
             <div className="sb-sec" style={i > 0 ? { marginTop: 14 } : {}}>

@@ -1,18 +1,21 @@
+// src/config.js
 // ─────────────────────────────────────────────────────────────
-//  src/config.js  —  Centro de configuración del frontend
+//  Para cambiar la URL del back edita SOLO los archivos .env:
+//    - .env             (desarrollo local  → localhost:8080)
+//    - .env.production  (producción        → URL de Render)
+//
+//  Back desplegado: https://sportstreamlive-back.onrender.com
 // ─────────────────────────────────────────────────────────────
 
 export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 export const WS_URL  = process.env.REACT_APP_WS_URL  || 'http://localhost:8080/ws';
 
-/** Destinos STOMP para SUSCRIBIRSE (escuchar) */
 export const WS_TOPICS = {
   CHAT:   (roomId)   => `/topic/chat/${roomId}`,
   STREAM: (streamId) => `/topic/stream/${streamId}`,
   WEBRTC: (streamId) => `/topic/webrtc/${streamId}`,
 };
 
-/** Destinos STOMP para ENVIAR al servidor */
 export const WS_APP = {
   CHAT:         (roomId)   => `/app/chat/${roomId}`,
   STREAM_START: (streamId) => `/app/stream/${streamId}/start`,
@@ -21,13 +24,14 @@ export const WS_APP = {
   WEBRTC:       (streamId) => `/app/webrtc/${streamId}/signal`,
 };
 
-/** Rutas REST — coinciden exactamente con @RequestMapping del back */
 export const ENDPOINTS = {
   LOGIN:    `${API_URL}/api/auth/login`,
   REGISTER: `${API_URL}/api/auth/register`,
 
   DASHBOARD:       (uid) => `${API_URL}/api/dashboard/${uid}`,
   DASHBOARD_METAS: (uid) => `${API_URL}/api/dashboard/${uid}/metas`,
+  DASHBOARD_XP:    (uid) => `${API_URL}/api/dashboard/${uid}/xp`,
+  DASHBOARD_ACT:   (uid) => `${API_URL}/api/dashboard/${uid}/actividad`,
 
   EVENTS:          `${API_URL}/api/events`,
   EVENT_BY_ID:     (id)  => `${API_URL}/api/events/${id}`,
@@ -36,6 +40,7 @@ export const ENDPOINTS = {
   CHALLENGES:       `${API_URL}/api/challenges`,
   CHALLENGE_BY_ID:  (id) => `${API_URL}/api/challenges/${id}`,
   CHALLENGE_UNIRSE: (id) => `${API_URL}/api/challenges/${id}/unirse`,
+  CHALLENGE_SALIR:  (id) => `${API_URL}/api/challenges/${id}/salir`,
 
   BADGES:      (uid)     => `${API_URL}/api/badges/${uid}`,
   BADGE_CLAIM: (badgeId) => `${API_URL}/api/badges/${badgeId}/claim`,

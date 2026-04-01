@@ -6,8 +6,6 @@ import { RegisterForm } from './RegisterForm';
 export function AuthScreen() {
   const [tab, setTab] = useState('login');
 
-  const switchTab = (t) => setTab(t);
-
   return (
     <div className="auth-wrap">
       <div className="auth-box fadeUp">
@@ -17,13 +15,13 @@ export function AuthScreen() {
           <div className="tab-bar">
             <button
               className={`tab-btn${tab === 'login' ? ' on' : ''}`}
-              onClick={() => switchTab('login')}
+              onClick={() => setTab('login')}
             >
               Iniciar sesión
             </button>
             <button
               className={`tab-btn${tab === 'register' ? ' on' : ''}`}
-              onClick={() => switchTab('register')}
+              onClick={() => setTab('register')}
             >
               Registrarse
             </button>
@@ -31,7 +29,7 @@ export function AuthScreen() {
 
           {tab === 'login'
             ? <LoginForm />
-            : <RegisterForm onSuccess={() => switchTab('login')} />
+            : <RegisterForm onSuccess={() => setTab('login')} />
           }
         </div>
       </div>

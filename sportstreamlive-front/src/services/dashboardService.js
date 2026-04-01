@@ -2,32 +2,30 @@
 import { ENDPOINTS } from '../config';
 import { get, post, put, apiRequest } from './apiClient';
 
-/** GET /api/dashboard/{userId} — perfil completo */
+/** GET /api/dashboard/{userId} */
 export const getDashboard = async (uid) => {
   const res = await get(ENDPOINTS.DASHBOARD(uid));
   if (!res.ok) return null;
   return res.json();
 };
 
-/** POST /api/dashboard/{userId}/actividad — actualiza racha del día */
+/** POST /api/dashboard/{userId}/actividad */
 export const registrarActividad = async (uid) => {
-  const res = await post(`${ENDPOINTS.DASHBOARD(uid)}/actividad`);
+  const res = await post(ENDPOINTS.DASHBOARD_ACT(uid));
   if (!res.ok) return null;
   return res.json();
 };
 
-/** POST /api/dashboard/{userId}/xp — suma XP */
+/** POST /api/dashboard/{userId}/xp */
 export const sumarXp = async (uid, cantidad) => {
-  const res = await post(`${ENDPOINTS.DASHBOARD(uid)}/xp`, { cantidad });
+  const res = await post(ENDPOINTS.DASHBOARD_XP(uid), { cantidad });
   if (!res.ok) return null;
   return res.json();
 };
 
 // ── Metas privadas ────────────────────────────────────────────
-// IMPORTANTE: usa ENDPOINTS.DASHBOARD_METAS (que ya existe en config.js)
-// y NO ENDPOINTS.DASHBOARD + '/metas' para evitar confusión.
 
-/** GET /api/dashboard/{userId}/metas — lista de metas privadas */
+/** GET /api/dashboard/{userId}/metas → devuelve array de strings */
 export const getMetas = async (uid) => {
   const res = await get(ENDPOINTS.DASHBOARD_METAS(uid));
   if (!res.ok) {
@@ -35,11 +33,14 @@ export const getMetas = async (uid) => {
     return [];
   }
   const data = await res.json();
-  // Garantizar que siempre devolvemos un array
-  return Array.isArray(data) ? data : [];
+  // El back devuelve directamente List<String>
+  return Array.isArray(data) ? data : (data?.metas ?? []);
 };
 
-/** POST /api/dashboard/{userId}/metas — agrega una meta */
+/**
+ * POST /api/dashboard/{userId}/metas
+ * El back devuelve UserProfile completo → extraemos .metas
+ */
 export const addMeta = async (uid, texto) => {
   const res = await post(ENDPOINTS.DASHBOARD_METAS(uid), { texto });
   if (!res.ok) {
@@ -47,28 +48,39 @@ export const addMeta = async (uid, texto) => {
     throw new Error(err.error || `Error ${res.status} al agregar meta`);
   }
   const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  // El back devuelve UserProfile; el endpoint GET devuelve List<String>
+  // Normalizar ambos casos
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.metas)) return data.metas;
+  // Si no trae metas, recargar
+  return getMetas(uid);
 };
 
-/** PUT /api/dashboard/{userId}/metas — reemplaza lista completa */
+/**
+ * PUT /api/dashboard/{userId}/metas
+ * El back devuelve UserProfile completo
+ */
 export const updateMetas = async (uid, metas) => {
   const res = await put(ENDPOINTS.DASHBOARD_METAS(uid), { metas });
-  if (!res.ok) {
-    throw new Error(`Error ${res.status} al actualizar metas`);
-  }
+  if (!res.ok) throw new Error(`Error ${res.status} al actualizar metas`);
   const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.metas)) return data.metas;
+  return getMetas(uid);
 };
 
-/** DELETE /api/dashboard/{userId}/metas/{index} — elimina por índice */
+/**
+ * DELETE /api/dashboard/{userId}/metas/{index}
+ * El back devuelve UserProfile completo
+ */
 export const deleteMeta = async (uid, index) => {
   const res = await apiRequest(
     `${ENDPOINTS.DASHBOARD_METAS(uid)}/${index}`,
     { method: 'DELETE' }
   );
-  if (!res.ok) {
-    throw new Error(`Error ${res.status} al eliminar meta`);
-  }
+  if (!res.ok) throw new Error(`Error ${res.status} al eliminar meta`);
   const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.metas)) return data.metas;
+  return getMetas(uid);
 };

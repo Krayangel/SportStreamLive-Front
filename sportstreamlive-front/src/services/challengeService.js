@@ -24,7 +24,9 @@ export const createChallenge = async (body) => {
 };
 
 export const unirseChallenge = async (id, uid) => {
-  const res = await post(`${ENDPOINTS.CHALLENGE_UNIRSE(id)}?userId=${encodeURIComponent(uid)}`);
+  const res = await post(
+    `${ENDPOINTS.CHALLENGE_UNIRSE(id)}?userId=${encodeURIComponent(uid)}`
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || 'Error al unirse al reto');
@@ -34,7 +36,7 @@ export const unirseChallenge = async (id, uid) => {
 
 export const salirChallenge = async (id, uid) => {
   const res = await apiRequest(
-    `${ENDPOINTS.CHALLENGE_BY_ID(id)}/salir?userId=${encodeURIComponent(uid)}`,
+    `${ENDPOINTS.CHALLENGE_SALIR(id)}?userId=${encodeURIComponent(uid)}`,
     { method: 'DELETE' }
   );
   if (!res.ok) {
@@ -44,7 +46,6 @@ export const salirChallenge = async (id, uid) => {
   return res.json();
 };
 
-// Registrar progreso del día (1 por día, editable)
 export const registrarProgreso = async (id, uid, texto) => {
   const res = await post(
     `${ENDPOINTS.CHALLENGE_BY_ID(id)}/progreso?userId=${encodeURIComponent(uid)}`,
@@ -57,7 +58,6 @@ export const registrarProgreso = async (id, uid, texto) => {
   return res.json();
 };
 
-// Obtener progreso diario: Map<fecha, texto>
 export const getProgreso = async (id, uid) => {
   const res = await get(
     `${ENDPOINTS.CHALLENGE_BY_ID(id)}/progreso/${encodeURIComponent(uid)}`

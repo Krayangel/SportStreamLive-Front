@@ -8,7 +8,6 @@ export function useChat(roomId, user) {
   const [messages, setMessages] = useState([]);
   const [loading,  setLoading]  = useState(true);
 
-  // Cargar historial REST al entrar
   useEffect(() => {
     if (!roomId) return;
     setLoading(true);
@@ -18,12 +17,10 @@ export function useChat(roomId, user) {
       .finally(() => setLoading(false));
   }, [roomId]);
 
-  // Suscribirse a mensajes nuevos por STOMP
   useEffect(() => {
     if (!roomId) return;
     const unsub = wsSubscribe(WS_TOPICS.CHAT(roomId), (msg) => {
       setMessages(prev => {
-        // Evitar duplicados por id
         if (msg.id && prev.find(m => m.id === msg.id)) return prev;
         return [...prev, msg];
       });

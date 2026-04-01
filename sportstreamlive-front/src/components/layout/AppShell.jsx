@@ -8,18 +8,20 @@ import { Retos }     from '../../pages/Retos';
 import { Eventos }   from '../../pages/Eventos';
 import { Perfil }    from '../../pages/Perfil';
 
+const PAGES = {
+  dashboard: Dashboard,
+  metas:     Metas,
+  logros:    Logros,
+  retos:     Retos,
+  eventos:   Eventos,
+  perfil:    Perfil,
+};
+
 export function AppShell() {
   const [page,    setPage]    = useState('dashboard');
   const [mobOpen, setMobOpen] = useState(false);
 
-  const pages = {
-    dashboard: <Dashboard />,
-    metas:     <Metas />,
-    logros:    <Logros />,
-    retos:     <Retos />,
-    eventos:   <Eventos />,
-    perfil:    <Perfil />,
-  };
+  const PageComponent = PAGES[page] || Dashboard;
 
   return (
     <div className="app-shell">
@@ -37,7 +39,7 @@ export function AppShell() {
         setMobOpen={setMobOpen}
       />
       <main className="main" key={page}>
-        {pages[page]}
+        <PageComponent />
       </main>
     </div>
   );

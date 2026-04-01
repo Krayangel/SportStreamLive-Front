@@ -10,10 +10,11 @@ export function useStream(streamId, user, isOwner) {
   useEffect(() => {
     if (!streamId) return;
     const unsub = wsSubscribe(WS_TOPICS.STREAM(streamId), (event) => {
-      console.log('[useStream] WS evento:', event.tipo);
-      if (event.tipo === 'STARTED') setStatus('STARTED');
-      if (event.tipo === 'ALIVE')   setStatus('ALIVE');
-      if (event.tipo === 'ENDED')   setStatus('ENDED');
+      // El back emite StreamEvent con campo "tipo" (STARTED, ALIVE, ENDED)
+      const tipo = event?.tipo || event?.type || '';
+      if (tipo === 'STARTED') setStatus('STARTED');
+      if (tipo === 'ALIVE')   setStatus('ALIVE');
+      if (tipo === 'ENDED')   setStatus('ENDED');
     });
     return unsub;
   }, [streamId]);
@@ -23,8 +24,13 @@ export function useStream(streamId, user, isOwner) {
     try {
       await startStream(streamId, user.id);
       setStatus('STARTED');
+      // Pequeño delay para dejar que el back registre la sesión
       setTimeout(() => {
-        wsSend(WS_APP.STREAM_START(streamId), { userId: user.id, tipo: 'START' });
+        wsSend(WS_APP.STREAM_START(streamId), {
+          streamId,
+          userId: user.id,
+          tipo: 'START',
+        });
       }, 600);
     } catch (err) {
       console.error('[useStream] start error:', err.message);
@@ -36,7 +42,11 @@ export function useStream(streamId, user, isOwner) {
     try {
       await stopStream(streamId, user.id);
       setStatus('ENDED');
-      wsSend(WS_APP.STREAM_STOP(streamId), { userId: user.id, tipo: 'STOP' });
+      wsSend(WS_APP.STREAM_STOP(streamId), {
+        streamId,
+        userId: user.id,
+        tipo: 'STOP',
+      });
     } catch (err) {
       console.error('[useStream] stop error:', err.message);
     }

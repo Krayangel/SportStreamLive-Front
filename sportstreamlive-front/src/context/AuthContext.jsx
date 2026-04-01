@@ -1,16 +1,18 @@
 // src/context/AuthContext.jsx
-// Provee el usuario autenticado a toda la app.
-// Lee localStorage al arrancar para mantener la sesión entre recargas.
-
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { login as svcLogin, register as svcRegister, logout as svcLogout, getStoredUser } from '../services/authService';
+import {
+  login    as svcLogin,
+  register as svcRegister,
+  logout   as svcLogout,
+  getStoredUser,
+} from '../services/authService';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => getStoredUser());
+  const [user,    setUser]    = useState(() => getStoredUser());
   const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState('');
+  const [error,   setError]   = useState('');
 
   const login = useCallback(async (email, password) => {
     setLoading(true); setError('');
