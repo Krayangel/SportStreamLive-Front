@@ -1,12 +1,5 @@
-// src/config.js
 // ─────────────────────────────────────────────────────────────
-//  Centro de configuración del frontend.
-//
-//  LOCAL:      usa el .env con http://localhost:8080
-//  PRODUCCIÓN: usa el .env.production con la URL real del back
-//
-//  NUNCA uses window.location.origin aquí — el front y el back
-//  viven en dominios distintos cuando están desplegados.
+//  src/config.js  —  Centro de configuración del frontend
 // ─────────────────────────────────────────────────────────────
 
 export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
