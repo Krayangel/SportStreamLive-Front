@@ -1,14 +1,14 @@
 // src/config.js
 // ─────────────────────────────────────────────────────────────
-//  Para cambiar la URL del back edita SOLO los archivos .env:
-//    - .env             (desarrollo local  → localhost:8080)
-//    - .env.production  (producción        → URL de Render)
+//  DONDE CAMBIAR LA URL DEL BACK:
+//    Local:      edita .env
+//    Produccion: edita .env.production
 //
-//  Back desplegado: https://sportstreamlive-back.onrender.com
+//  Back en Render: https://sportstreamlive-back-1.onrender.com
 // ─────────────────────────────────────────────────────────────
 
-export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
-export const WS_URL  = process.env.REACT_APP_WS_URL  || 'http://localhost:8080/ws';
+export const API_URL = process.env.REACT_APP_API_URL || 'https://sportstreamlive-back-1.onrender.com';
+export const WS_URL  = process.env.REACT_APP_WS_URL  || 'https://sportstreamlive-back-1.onrender.com/ws';
 
 export const WS_TOPICS = {
   CHAT:   (roomId)   => `/topic/chat/${roomId}`,
