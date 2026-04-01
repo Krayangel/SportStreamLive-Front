@@ -1,4 +1,13 @@
 {
+  "name": "sportstreamlive-front-monorepo",
+  "private": true,
+  "workspaces": ["sportstreamlive-front"],
+  "scripts": {
+    "start": "cd sportstreamlive-front && npm start",
+    "build": "cd sportstreamlive-front && npm run build",
+    "test": "cd sportstreamlive-front && npm test",
+    "postinstall": "cd sportstreamlive-front && npm install"
+  },
   "dependencies": {
     "@stomp/stompjs": "^7.3.0",
     "sockjs-client": "^1.6.1"

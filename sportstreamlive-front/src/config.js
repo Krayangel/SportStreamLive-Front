@@ -1,18 +1,16 @@
+// src/config.js
 // ─────────────────────────────────────────────────────────────
-//  src/config.js  —  Centro de configuración del frontend
+//  Centro de configuración del frontend.
+//
+//  LOCAL:      usa el .env con http://localhost:8080
+//  PRODUCCIÓN: usa el .env.production con la URL real del back
+//
+//  NUNCA uses window.location.origin aquí — el front y el back
+//  viven en dominios distintos cuando están desplegados.
 // ─────────────────────────────────────────────────────────────
 
-const isBrowser = typeof window !== 'undefined';
-const defaultOrigin = isBrowser
-  ? window.location.origin
-  : 'http://localhost:8080';
-
-// El WS se construye desde API_URL por seguridad y coherencia entre entornos.
-const apiBase = process.env.REACT_APP_API_URL || defaultOrigin;
-const wsDefault = process.env.REACT_APP_WS_URL || `${new URL('/ws', apiBase).toString()}`;
-
-export const API_URL = apiBase;
-export const WS_URL = wsDefault;
+export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+export const WS_URL  = process.env.REACT_APP_WS_URL  || 'http://localhost:8080/ws';
 
 /** Destinos STOMP para SUSCRIBIRSE (escuchar) */
 export const WS_TOPICS = {
