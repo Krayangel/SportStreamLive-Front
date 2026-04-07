@@ -5,7 +5,7 @@ import { useStream }   from '../hooks/useStream';
 import { ChatBox }     from '../components/ui/ChatBox';
 import { AlertBox }    from '../components/ui/AlertBox';
 import { Spinner }     from '../components/ui/Spinner';
-import { claimBadge }  from '../services/badgeService';
+import { claimBadge, launchBadge } from '../services/badgeService';
 import { wsSubscribe, wsSend } from '../services/wsClient';
 import { WS_TOPICS, WS_APP }   from '../config';
 
@@ -37,6 +37,11 @@ export function LiveRoom({ event, onExit }) {
   const [badgeClaimed, setBadgeClaimed] = useState(false);
   const [badgeMsg,     setBadgeMsg]     = useState('');
   const [claimLoading, setClaimLoading] = useState(false);
+  const [activeBadge,  setActiveBadge]  = useState(null);   // medalla lanzada por streamer
+  const [launchNombre, setLaunchNombre] = useState('');
+  const [launchTipo,   setLaunchTipo]   = useState('MEDALLA_LIVE');
+  const [launchLoading,setLaunchLoading]= useState(false);
+  const [launchMsg,    setLaunchMsg]    = useState('');
 
   const isLive = status === 'STARTED' || status === 'ALIVE';
 
@@ -242,24 +247,55 @@ export function LiveRoom({ event, onExit }) {
     await stop();
   }, [stop]);
 
+  // ── Escuchar medallas lanzadas (viewer) ─────────────────
+  useEffect(() => {
+    if (!streamId) return;
+    const unsub = wsSubscribe(WS_TOPICS.BADGES(streamId), (msg) => {
+      if (msg?.action === 'LAUNCHED') {
+        setActiveBadge({ badgeId: msg.badgeId, tipo: msg.tipo, nombre: msg.nombre });
+        setBadgeClaimed(false);
+        setBadgeMsg('');
+      }
+    });
+    return unsub;
+  }, [streamId]);
+
+  // ── Streamer: lanzar medalla ─────────────────────────────
+  const handleLaunchBadge = useCallback(async () => {
+    if (!user?.id || launchLoading || !launchNombre.trim()) return;
+    setLaunchLoading(true);
+    setLaunchMsg('');
+    try {
+      await launchBadge(streamId, user.id, launchTipo, launchNombre.trim());
+      setLaunchMsg('¡Medalla lanzada! Los espectadores ya pueden atraparla.');
+      setLaunchNombre('');
+    } catch (err) {
+      setLaunchMsg('Error: ' + (err?.message || 'No se pudo lanzar'));
+    } finally {
+      setLaunchLoading(false);
+    }
+  }, [user?.id, streamId, launchTipo, launchNombre, launchLoading]);
+
   // ── Medalla especial ─────────────────────────────────────
   const handleClaimBadge = useCallback(async () => {
-    if (!user?.id || claimLoading) return;
+    if (!user?.id || claimLoading || !activeBadge) return;
     setClaimLoading(true);
     try {
       const res = await claimBadge(
-        `evento-${event.id}-primero`, user.id, 'ESPECTADOR_VIP', 'Espectador VIP'
+        activeBadge.badgeId, user.id, activeBadge.tipo, activeBadge.nombre
       );
       setBadgeMsg(res.claimed
         ? '🏅 ¡Felicidades! La medalla es tuya.'
         : '😔 La medalla ya fue reclamada por otro espectador.');
       setBadgeClaimed(true);
+      setActiveBadge(null);
     } catch {
       setBadgeMsg('Error al reclamar la medalla.');
+      setBadgeClaimed(true);
     } finally {
       setClaimLoading(false);
     }
-  }, [user?.id, event.id, claimLoading]);
+  }, [user?.id, activeBadge, claimLoading]);
 
   return (
     <div className="page">
@@ -366,20 +402,78 @@ export function LiveRoom({ event, onExit }) {
             </div>
           )}
 
-          {/* Medalla especial para viewer */}
-          {!isOwner && !badgeClaimed && (
+          {/* Panel lanzar medalla — solo dueño durante el live */}
+          {isOwner && isLive && (
             <div style={{
               background: 'var(--card)', border: '1px solid var(--border)',
               borderRadius: 'var(--r)', padding: 16, marginTop: 10,
             }}>
-              <p style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: 10 }}>
-                🏅 <strong style={{ color: 'var(--text)' }}>Medalla única:</strong> solo UN espectador puede reclamarla. ¡Sé el primero!
+              <p style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: 10 }}>
+                🏅 Lanzar medalla a espectadores
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <select
+                  value={launchTipo}
+                  onChange={e => setLaunchTipo(e.target.value)}
+                  style={{
+                    background: 'var(--bg)', color: 'var(--text)',
+                    border: '1px solid var(--border)', borderRadius: 6,
+                    padding: '6px 10px', fontSize: '0.8rem',
+                  }}>
+                  <option value="MEDALLA_LIVE">🏅 Medalla Live</option>
+                  <option value="MEDALLA_VELOCIDAD">⚡ Velocidad</option>
+                  <option value="MEDALLA_RESISTENCIA">🔥 Resistencia</option>
+                  <option value="MEDALLA_FUERZA">💪 Fuerza</option>
+                  <option value="ESPECTADOR_VIP">👑 Espectador VIP</option>
+                  <option value="MEDALLA_PRECISION">🎯 Precisión</option>
+                  <option value="MEDALLA_LIDERAZGO">🥇 Liderazgo</option>
+                  <option value="MEDALLA_ESPIRITU">✨ Espíritu deportivo</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Nombre de la medalla…"
+                  value={launchNombre}
+                  onChange={e => setLaunchNombre(e.target.value)}
+                  maxLength={40}
+                  style={{
+                    flex: 1, minWidth: 140,
+                    background: 'var(--bg)', color: 'var(--text)',
+                    border: '1px solid var(--border)', borderRadius: 6,
+                    padding: '6px 10px', fontSize: '0.8rem',
+                  }}
+                />
+                <button className="btn-main" style={{ maxWidth: 140 }}
+                  onClick={handleLaunchBadge}
+                  disabled={launchLoading || !launchNombre.trim()}>
+                  {launchLoading ? '⟳ Lanzando…' : '🚀 Lanzar'}
+                </button>
+              </div>
+              {launchMsg && (
+                <p style={{
+                  fontSize: '0.78rem', marginTop: 8,
+                  color: launchMsg.startsWith('Error') ? 'var(--danger)' : 'var(--accent)',
+                }}>{launchMsg}</p>
+              )}
+            </div>
+          )}
+
+          {/* Medalla activa para viewer — aparece solo cuando el streamer lanza una */}
+          {!isOwner && activeBadge && !badgeClaimed && (
+            <div style={{
+              background: 'var(--card)', border: '2px solid var(--accent)',
+              borderRadius: 'var(--r)', padding: 16, marginTop: 10,
+            }}>
+              <p style={{ fontSize: '0.85rem', marginBottom: 6 }}>
+                🚨 <strong style={{ color: 'var(--accent)' }}>¡Medalla disponible!</strong>
+              </p>
+              <p style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: 10 }}>
+                <strong style={{ color: 'var(--text)' }}>{activeBadge.nombre}</strong> — ¡Solo uno la puede atrapar!
               </p>
               <button className="btn-main" style={{ maxWidth: 220 }}
                 onClick={handleClaimBadge} disabled={claimLoading}>
                 {claimLoading
                   ? <><span className="spin-anim">⟳</span> Reclamando…</>
-                  : '🏅 Atrapar medalla'}
+                  : '🏅 ¡Atrapar medalla!'}
               </button>
             </div>
           )}

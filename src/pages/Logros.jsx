@@ -8,11 +8,18 @@ import { Spinner }     from '../components/ui/Spinner';
 import { formatDate }  from '../utils/formatters';
 
 const TIPO_ICON = {
-  PRIMER_LOGRO:       '🌟',
-  INSCRIPCION_EVENTO: '📅',
-  UNIRSE_RETO:        '⚔️',
-  COMPLETAR_RETO:     '🏆',
-  ESPECTADOR_VIP:     '🏅',
+  PRIMER_LOGRO:        '🌟',
+  INSCRIPCION_EVENTO:  '📅',
+  UNIRSE_RETO:         '⚔️',
+  COMPLETAR_RETO:      '🏆',
+  ESPECTADOR_VIP:      '👑',
+  MEDALLA_LIVE:        '🏅',
+  MEDALLA_VELOCIDAD:   '⚡',
+  MEDALLA_RESISTENCIA: '🔥',
+  MEDALLA_FUERZA:      '💪',
+  MEDALLA_PRECISION:   '🎯',
+  MEDALLA_LIDERAZGO:   '🥇',
+  MEDALLA_ESPIRITU:    '✨',
 };
 
 export function Logros() {
@@ -59,11 +66,18 @@ export function Logros() {
 
       <ContentCard title="Cómo ganar medallas" icon="💡" style={{ marginTop: 14 }}>
         {[
-          ['🌟', 'Registrarte en la app',    'Se otorga automáticamente'],
-          ['📅', 'Inscribirte a un evento',  'Por cada evento nuevo'],
-          ['⚔️', 'Unirte a un reto',         'Por cada reto que aceptes'],
-          ['🏆', 'Completar un reto',        'Al cumplir todos los días requeridos'],
-          ['🏅', 'Ser el primero en un live','¡Solo uno por evento! Sé rápido'],
+          ['🌟', 'Registrarte en la app',           'Se otorga automáticamente'],
+          ['📅', 'Inscribirte a un evento',          'Por cada evento nuevo'],
+          ['⚔️', 'Unirte a un reto',                 'Por cada reto que aceptes'],
+          ['🏆', 'Completar un reto',                'Al cumplir todos los días requeridos'],
+          ['👑', 'Espectador VIP en un live',        '¡Solo uno por live! Sé rápido'],
+          ['🏅', 'Medalla live lanzada por streamer','El streamer la lanza, el primero en clickear gana'],
+          ['⚡', 'Medalla de velocidad',             'Lanzada por el streamer durante el live'],
+          ['🔥', 'Medalla de resistencia',           'Lanzada por el streamer durante el live'],
+          ['💪', 'Medalla de fuerza',                'Lanzada por el streamer durante el live'],
+          ['🎯', 'Medalla de precisión',             'Lanzada por el streamer durante el live'],
+          ['🥇', 'Medalla de liderazgo',             'Lanzada por el streamer durante el live'],
+          ['✨', 'Medalla de espíritu deportivo',    'Lanzada por el streamer durante el live'],
         ].map(([ico, n, d]) => (
           <div className="ch" key={n} style={{ cursor: 'default' }}>
             <div className="ch-ico">{ico}</div>

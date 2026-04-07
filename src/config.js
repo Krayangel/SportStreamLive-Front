@@ -14,6 +14,7 @@ export const WS_TOPICS = {
   CHAT:   (roomId)   => `/topic/chat/${roomId}`,
   STREAM: (streamId) => `/topic/stream/${streamId}`,
   WEBRTC: (streamId) => `/topic/webrtc/${streamId}`,
+  BADGES: (streamId) => `/topic/badges/${streamId}`,
 };
 
 export const WS_APP = {
@@ -42,8 +43,9 @@ export const ENDPOINTS = {
   CHALLENGE_UNIRSE: (id) => `${API_URL}/api/challenges/${id}/unirse`,
   CHALLENGE_SALIR:  (id) => `${API_URL}/api/challenges/${id}/salir`,
 
-  BADGES:      (uid)     => `${API_URL}/api/badges/${uid}`,
-  BADGE_CLAIM: (badgeId) => `${API_URL}/api/badges/${badgeId}/claim`,
+  BADGES:        (uid)      => `${API_URL}/api/badges/${uid}`,
+  BADGE_CLAIM:   (badgeId)  => `${API_URL}/api/badges/${badgeId}/claim`,
+  BADGE_LAUNCH:  (streamId) => `${API_URL}/api/badges/${streamId}/launch`,
 
   STREAM_START:  (sid) => `${API_URL}/api/streaming/${sid}/start`,
   STREAM_STOP:   (sid) => `${API_URL}/api/streaming/${sid}/stop`,
