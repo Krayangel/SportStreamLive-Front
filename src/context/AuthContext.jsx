@@ -25,9 +25,10 @@ export function AuthProvider({ children }) {
     // Limpiar la URL sin recargar (volver a raíz)
     window.history.replaceState({}, document.title, '/');
 
-    // Decodificar el JWT para extraer email (no se verifica, solo se lee)
+    // Decodificar el JWT (base64url → base64 → JSON)
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      const b64     = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(b64));
       const email   = payload.sub;
       const username = email.split('@')[0];
       localStorage.setItem(TOKEN_KEY, token);
