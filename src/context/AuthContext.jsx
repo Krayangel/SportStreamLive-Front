@@ -1,11 +1,12 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import {
   login    as svcLogin,
   register as svcRegister,
   logout   as svcLogout,
   getStoredUser,
 } from '../services/authService';
+import { TOKEN_KEY, USER_KEY } from '../config';
 
 const AuthContext = createContext(null);
 
@@ -13,6 +14,30 @@ export function AuthProvider({ children }) {
   const [user,    setUser]    = useState(() => getStoredUser());
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
+
+  // Maneja el token que llega por URL tras OAuth2 Google
+  // El back redirige a: /oauth2/callback?token=<jwt>
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token  = params.get('token');
+    if (!token) return;
+
+    // Limpiar la URL sin recargar
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    // Decodificar el JWT para extraer email (no se verifica, solo se lee)
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const email   = payload.sub;
+      const username = email.split('@')[0];
+      localStorage.setItem(TOKEN_KEY, token);
+      const userData = { id: payload.userId || email, username, email };
+      localStorage.setItem(USER_KEY, JSON.stringify(userData));
+      setUser(userData);
+    } catch (e) {
+      console.error('[AuthContext] Error procesando token OAuth2:', e);
+    }
+  }, []);
 
   const login = useCallback(async (email, password) => {
     setLoading(true); setError('');

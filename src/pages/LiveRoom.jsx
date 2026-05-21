@@ -266,7 +266,7 @@ export function LiveRoom({ event, onExit }) {
     setLaunchLoading(true);
     setLaunchMsg('');
     try {
-      await launchBadge(streamId, user.id, launchTipo, launchNombre.trim());
+      await launchBadge(streamId, launchTipo, launchNombre.trim());
       setLaunchMsg('¡Medalla lanzada! Los espectadores ya pueden atraparla.');
       setLaunchNombre('');
     } catch (err) {
