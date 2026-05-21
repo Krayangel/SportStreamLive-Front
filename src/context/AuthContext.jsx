@@ -22,8 +22,8 @@ export function AuthProvider({ children }) {
     const token  = params.get('token');
     if (!token) return;
 
-    // Limpiar la URL sin recargar
-    window.history.replaceState({}, document.title, window.location.pathname);
+    // Limpiar la URL sin recargar (volver a raíz)
+    window.history.replaceState({}, document.title, '/');
 
     // Decodificar el JWT para extraer email (no se verifica, solo se lee)
     try {
