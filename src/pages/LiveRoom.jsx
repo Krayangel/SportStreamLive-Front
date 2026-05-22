@@ -122,8 +122,11 @@ export function LiveRoom({ event, onExit }) {
     pcRef.current = pc;
 
     pc.ontrack = (e) => {
-      if (remoteVideoRef.current && e.streams[0]) {
-        remoteVideoRef.current.srcObject = e.streams[0];
+      const stream = e.streams?.[0];
+      if (remoteVideoRef.current && stream) {
+        remoteVideoRef.current.srcObject = stream;
+        // Llamar play() explícitamente — autoPlay no siempre dispara al asignar srcObject por JS
+        remoteVideoRef.current.play().catch(() => {});
         setRtcConnected(true);
       }
     };
@@ -141,8 +144,13 @@ export function LiveRoom({ event, onExit }) {
       }
     };
 
+    // Solo usar onconnectionstatechange para detectar desconexión/fallo.
+    // NO poner rtcConnected=true aquí — puede dispararse antes de ontrack
+    // y mostrar el video negro sin srcObject aún asignado.
     pc.onconnectionstatechange = () => {
-      setRtcConnected(pc.connectionState === 'connected');
+      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        setRtcConnected(false);
+      }
     };
   }, [streamId, user?.id, event.creatorId]);
 
