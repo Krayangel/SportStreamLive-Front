@@ -24,6 +24,8 @@ export function LiveRoom({ event, onExit }) {
   const { user }  = useAuth();
   const streamId  = `event-${event.id}`;
   const isOwner   = event.creatorId === user?.id;
+  const isAdmin   = user?.roles?.includes('ROLE_ADMIN');
+  const canManage = isOwner || isAdmin; // controles de gestión: badges + detener live
 
   const { status, start, stop } = useStream(streamId, user, isOwner);
 
@@ -31,10 +33,13 @@ export function LiveRoom({ event, onExit }) {
   const localStreamRef = useRef(null);
   const pcsRef         = useRef({});   // dueño: { viewerId -> RTCPeerConnection }
 
-  const remoteVideoRef = useRef(null);
-  const pcRef          = useRef(null); // viewer: RTCPeerConnection con el dueño
+  const remoteVideoRef      = useRef(null);
+  const pcRef               = useRef(null); // viewer: RTCPeerConnection con el dueño
+  const pendingCandidates      = useRef([]);  // viewer: ICE del owner antes de setRemoteDescription (OFFER)
+  const pendingCandidatesOwner = useRef({});  // owner:  ICE del viewer antes de setRemoteDescription (ANSWER)
 
   const [camReady,     setCamReady]     = useState(false);
+  const [iceState,     setIceState]     = useState('new'); // visibilidad del estado ICE (viewer)
   const [camError,     setCamError]     = useState('');
   const [viewerCount,  setViewerCount]  = useState(0);
   const [rtcConnected, setRtcConnected] = useState(false);
@@ -74,6 +79,7 @@ export function LiveRoom({ event, onExit }) {
     }
     const pc = new RTCPeerConnection(RTC_CONFIG);
     pcsRef.current[viewerId] = pc;
+    pendingCandidatesOwner.current[viewerId] = []; // inicializar cola ICE para este viewer
 
     localStreamRef.current.getTracks().forEach(t =>
       pc.addTrack(t, localStreamRef.current)
@@ -92,11 +98,16 @@ export function LiveRoom({ event, onExit }) {
       }
     };
 
+    pc.oniceconnectionstatechange = () => {
+      console.log(`[ICE owner→${viewerId}] iceConnectionState: ${pc.iceConnectionState}`);
+    };
+
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'connected')     setViewerCount(v => v + 1);
       if (pc.connectionState === 'disconnected' ||
           pc.connectionState === 'failed') {
         delete pcsRef.current[viewerId];
+        pendingCandidatesOwner.current[viewerId] = [];
         setViewerCount(v => Math.max(0, v - 1));
       }
     };
@@ -147,12 +158,18 @@ export function LiveRoom({ event, onExit }) {
       }
     };
 
+    pc.oniceconnectionstatechange = () => {
+      console.log(`[ICE viewer] iceConnectionState: ${pc.iceConnectionState}`);
+      setIceState(pc.iceConnectionState);
+    };
+
     // Solo usar onconnectionstatechange para detectar desconexión/fallo.
     // NO poner rtcConnected=true aquí — puede dispararse antes de ontrack
     // y mostrar el video negro sin srcObject aún asignado.
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
         setRtcConnected(false);
+        setIceState('failed');
       }
     };
   }, [streamId, user?.id, event.creatorId]);
@@ -172,19 +189,27 @@ export function LiveRoom({ event, onExit }) {
         if (signal.type === 'ANSWER') {
           const pc = pcsRef.current[signal.senderUserId];
           if (pc && pc.signalingState !== 'stable') {
-            try { await pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp }); } catch {}
+            try {
+              await pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp });
+              // Vaciar candidatos ICE encolados que llegaron antes del ANSWER
+              const queued = (pendingCandidatesOwner.current[signal.senderUserId] || []).splice(0);
+              for (const c of queued) {
+                try { await pc.addIceCandidate(c); } catch (e) { console.warn('[ICE owner flush]', e.message); }
+              }
+            } catch (e) { console.error('[ANSWER owner]', e.message); }
           }
         }
         if (signal.type === 'ICE') {
           const pc = pcsRef.current[signal.senderUserId];
           if (pc) {
-            try {
-              await pc.addIceCandidate({
-                candidate: signal.candidate,
-                sdpMid: signal.sdpMid,
-                sdpMLineIndex: signal.sdpMLineIndex,
-              });
-            } catch {}
+            const cand = { candidate: signal.candidate, sdpMid: signal.sdpMid, sdpMLineIndex: signal.sdpMLineIndex };
+            if (!pc.remoteDescription) {
+              // ANSWER aún no llegó — encolar para aplicar después
+              if (!pendingCandidatesOwner.current[signal.senderUserId]) pendingCandidatesOwner.current[signal.senderUserId] = [];
+              pendingCandidatesOwner.current[signal.senderUserId].push(cand);
+            } else {
+              try { await pc.addIceCandidate(cand); } catch (e) { console.warn('[ICE owner]', e.message); }
+            }
           }
         }
       } else {
@@ -195,10 +220,16 @@ export function LiveRoom({ event, onExit }) {
             try { pcRef.current.close(); } catch {}
             pcRef.current = null;
           }
+          pendingCandidates.current = []; // limpiar cola al reiniciar PC
           initViewerPC();
           const pc = pcRef.current;
           try {
             await pc.setRemoteDescription({ type: 'offer', sdp: signal.sdp });
+            // Vaciar candidatos ICE encolados que llegaron antes del OFFER
+            const queued = pendingCandidates.current.splice(0);
+            for (const c of queued) {
+              try { await pc.addIceCandidate(c); } catch (e) { console.warn('[ICE viewer flush]', e.message); }
+            }
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             wsSend(WS_APP.WEBRTC(streamId), {
@@ -214,13 +245,13 @@ export function LiveRoom({ event, onExit }) {
         if (signal.type === 'ICE') {
           const pc = pcRef.current;
           if (pc) {
-            try {
-              await pc.addIceCandidate({
-                candidate: signal.candidate,
-                sdpMid: signal.sdpMid,
-                sdpMLineIndex: signal.sdpMLineIndex,
-              });
-            } catch {}
+            const cand = { candidate: signal.candidate, sdpMid: signal.sdpMid, sdpMLineIndex: signal.sdpMLineIndex };
+            if (!pc.remoteDescription) {
+              // OFFER aún no llegó — encolar para aplicar después
+              pendingCandidates.current.push(cand);
+            } else {
+              try { await pc.addIceCandidate(cand); } catch (e) { console.warn('[ICE viewer]', e.message); }
+            }
           }
         }
       }
@@ -400,6 +431,11 @@ export function LiveRoom({ event, onExit }) {
                         <p style={{ color: 'var(--muted)', fontSize: '0.75rem', marginTop: 4 }}>
                           El chat ya está activo ➡
                         </p>
+                        {iceState !== 'new' && iceState !== 'connected' && iceState !== 'completed' && (
+                          <p style={{ color: 'var(--muted)', fontSize: '0.72rem', marginTop: 4, fontFamily: 'monospace' }}>
+                            ICE: {iceState}
+                          </p>
+                        )}
                       </div>
                 }
               </div>
@@ -412,7 +448,7 @@ export function LiveRoom({ event, onExit }) {
                 fontWeight: 800, fontFamily: 'Space Mono,monospace', letterSpacing: 1,
               }}>🔴 EN VIVO</div>
             )}
-            {isOwner && isLive && viewerCount > 0 && (
+            {canManage && isLive && viewerCount > 0 && (
               <div style={{
                 position: 'absolute', top: 12, right: 12,
                 background: 'rgba(60,245,180,0.85)', color: '#060a0f',
@@ -436,13 +472,6 @@ export function LiveRoom({ event, onExit }) {
                     🔄 Reintentar cámara
                   </button>
                 )}
-                {camReady && isLive && (
-                  <button className="btn-main"
-                    style={{ maxWidth: 200, background: 'var(--danger)', color: '#fff' }}
-                    onClick={handleStop}>
-                    ⏹ Detener Live
-                  </button>
-                )}
               </div>
               <p style={{ fontSize: '0.73rem', color: 'var(--muted)', marginTop: 8 }}>
                 Solo tú puedes iniciar y detener este live. Múltiples viewers pueden conectarse simultáneamente.
@@ -450,8 +479,28 @@ export function LiveRoom({ event, onExit }) {
             </div>
           )}
 
-          {/* Panel lanzar medalla — solo dueño durante el live */}
-          {isOwner && isLive && (
+          {/* Detener live — dueño o admin */}
+          {canManage && isLive && (
+            <div style={{
+              background: 'var(--card)', border: '1px solid var(--border)',
+              borderRadius: 'var(--r)', padding: 16, marginTop: 10,
+              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+            }}>
+              <button className="btn-main"
+                style={{ maxWidth: 200, background: 'var(--danger)', color: '#fff' }}
+                onClick={handleStop}>
+                ⏹ Detener Live
+              </button>
+              {isAdmin && !isOwner && (
+                <p style={{ fontSize: '0.73rem', color: 'var(--muted)', margin: 0 }}>
+                  Como admin puedes detener este live.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Panel lanzar medalla — dueño o admin durante el live */}
+          {canManage && isLive && (
             <div style={{
               background: 'var(--card)', border: '1px solid var(--border)',
               borderRadius: 'var(--r)', padding: 16, marginTop: 10,

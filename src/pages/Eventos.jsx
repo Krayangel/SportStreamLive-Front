@@ -183,7 +183,8 @@ export function Eventos() {
           const inscrito    = e.asistentes?.includes(user?.id);
           const streamOn    = actives[e.id];
           const esCreador   = e.creatorId === user?.id;
-          const puedeEntrar = esCreador || inscrito;
+          const esAdmin     = user?.roles?.includes('ROLE_ADMIN');
+          const puedeEntrar = esCreador || inscrito || esAdmin;
 
           return (
             <div className="ev" key={e.id}>
