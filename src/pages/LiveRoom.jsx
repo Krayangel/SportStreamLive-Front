@@ -14,10 +14,13 @@ const DEFAULT_ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'turn:a.relay.metered.ca:80',               username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:a.relay.metered.ca:443',              username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:a.relay.metered.ca:443?transport=tcp',username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:a.relay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  // TURN sobre UDP (puertos 80 y 443)
+  { urls: 'turn:openrelay.metered.ca:80',               username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443',              username: 'openrelayproject', credential: 'openrelayproject' },
+  // TURN sobre TCP — traversa la mayoría de firewalls corporativos/universitarios
+  { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp',username: 'openrelayproject', credential: 'openrelayproject' },
 ];
 
 export function LiveRoom({ event, onExit }) {
@@ -97,10 +100,8 @@ export function LiveRoom({ event, onExit }) {
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) {
+        console.log(`[ICE owner→${viewerId}] ${candidate.type} ${candidate.protocol} ${candidate.address}`);
         wsSend(WS_APP.WEBRTC(streamId), {
-          type: 'ICE', streamId,
-          senderUserId: user.id,
-          targetUserId: viewerId,
           candidate: candidate.candidate,
           sdpMid: candidate.sdpMid,
           sdpMLineIndex: candidate.sdpMLineIndex,
@@ -157,10 +158,8 @@ export function LiveRoom({ event, onExit }) {
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) {
+        console.log(`[ICE viewer] ${candidate.type} ${candidate.protocol} ${candidate.address}`);
         wsSend(WS_APP.WEBRTC(streamId), {
-          type: 'ICE', streamId,
-          senderUserId: user.id,
-          targetUserId: event.creatorId,
           candidate: candidate.candidate,
           sdpMid: candidate.sdpMid,
           sdpMLineIndex: candidate.sdpMLineIndex,
