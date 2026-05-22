@@ -1,23 +1,26 @@
 // src/App.js
 import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { AuthScreen } from './components/auth/AuthScreen';
-import { AppShell }   from './components/layout/AppShell';
+import { AuthScreen }    from './components/auth/AuthScreen';
+import { AppShell }      from './components/layout/AppShell';
+import { RoleSelector }  from './pages/RoleSelector';
 import { wsInit, wsDisconnect } from './services/wsClient';
 import './styles/global.css';
 
 function AppInner() {
-  const { user } = useAuth();
+  const { user, pendingRole } = useAuth();
 
   useEffect(() => {
-    if (user) {
+    if (user && !pendingRole) {
       wsInit();
     } else {
       wsDisconnect();
     }
-  }, [user]);
+  }, [user, pendingRole]);
 
-  return user ? <AppShell /> : <AuthScreen />;
+  if (!user)           return <AuthScreen />;
+  if (pendingRole)     return <RoleSelector />;
+  return <AppShell />;
 }
 
 export default function App() {

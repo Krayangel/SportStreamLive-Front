@@ -11,30 +11,34 @@ import { TOKEN_KEY, USER_KEY } from '../config';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user,    setUser]    = useState(() => getStoredUser());
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState('');
+  const [user,        setUser]        = useState(() => getStoredUser());
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState('');
+  const [pendingRole, setPendingRole] = useState(false);
 
   // Maneja el token que llega por URL tras OAuth2 Google
-  // El back redirige a: /oauth2/callback?token=<jwt>
+  // El back redirige a: /oauth2/callback?token=<jwt>[&new=true]
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token  = params.get('token');
+    const params  = new URLSearchParams(window.location.search);
+    const token   = params.get('token');
+    const isNew   = params.get('new') === 'true';
     if (!token) return;
 
-    // Limpiar la URL sin recargar (volver a raíz)
     window.history.replaceState({}, document.title, '/');
 
-    // Decodificar el JWT (base64url → base64 → JSON)
     try {
       const b64     = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
       const payload = JSON.parse(atob(b64));
       const email   = payload.sub;
       const username = email.split('@')[0];
       localStorage.setItem(TOKEN_KEY, token);
-      const userData = { id: payload.userId || email, username, email };
+      const userData = {
+        id: payload.userId || email, username, email,
+        roles: payload.roles || [],
+      };
       localStorage.setItem(USER_KEY, JSON.stringify(userData));
       setUser(userData);
+      if (isNew) setPendingRole(true);
     } catch (e) {
       console.error('[AuthContext] Error procesando token OAuth2:', e);
     }
@@ -44,7 +48,7 @@ export function AuthProvider({ children }) {
     setLoading(true); setError('');
     try {
       const data = await svcLogin(email, password);
-      setUser({ id: data.userId, username: data.username, email });
+      setUser(getStoredUser());
       return true;
     } catch (e) {
       setError(e.message);
@@ -58,7 +62,7 @@ export function AuthProvider({ children }) {
     setLoading(true); setError('');
     try {
       const data = await svcRegister(formData);
-      setUser({ id: data.userId, username: data.username, email: formData.email });
+      setUser(getStoredUser());
       return true;
     } catch (e) {
       setError(e.message);
@@ -71,10 +75,24 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     svcLogout();
     setUser(null);
+    setPendingRole(false);
+  }, []);
+
+  // Llamado desde RoleSelector tras elegir rol post-Google
+  const confirmRole = useCallback((updatedUser) => {
+    if (updatedUser) {
+      localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+      setUser(updatedUser);
+    }
+    setPendingRole(false);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, setError, login, register, logout }}>
+    <AuthContext.Provider value={{
+      user, loading, error, setError,
+      login, register, logout,
+      pendingRole, confirmRole,
+    }}>
       {children}
     </AuthContext.Provider>
   );

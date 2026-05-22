@@ -14,9 +14,14 @@ const NAV_ITEMS = [
 
 export function Sidebar({ page, onNavigate, mobOpen, setMobOpen }) {
   const { user, logout } = useAuth();
+  const isAdmin  = user?.roles?.includes('ROLE_ADMIN');
   const initials = user?.username
     ? user.username.slice(0, 2).toUpperCase()
     : '??';
+
+  const visibleItems = NAV_ITEMS.filter(item =>
+    item.id !== 'admin' || isAdmin
+  );
 
   return (
     <aside className={`sidebar${mobOpen ? ' mob-open' : ''}`}>
@@ -30,7 +35,7 @@ export function Sidebar({ page, onNavigate, mobOpen, setMobOpen }) {
         </div>
       </div>
 
-      {NAV_ITEMS.map((item, i) => (
+      {visibleItems.map((item, i) => (
         <React.Fragment key={item.id}>
           {item.section && (
             <div className="sb-sec" style={i > 0 ? { marginTop: 14 } : {}}>
