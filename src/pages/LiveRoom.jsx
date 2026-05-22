@@ -66,13 +66,16 @@ export function LiveRoom({ event, onExit }) {
 
   // ── DUEÑO: crear RTCPeerConnection para un viewer ───────
   const createPeerForViewer = useCallback(async (viewerId) => {
+    // No crear oferta si la cámara aún no está lista — el retry JOIN del viewer lo reintentará
+    if (!localStreamRef.current) return;
+
     if (pcsRef.current[viewerId]) {
       try { pcsRef.current[viewerId].close(); } catch {}
     }
     const pc = new RTCPeerConnection(RTC_CONFIG);
     pcsRef.current[viewerId] = pc;
 
-    localStreamRef.current?.getTracks().forEach(t =>
+    localStreamRef.current.getTracks().forEach(t =>
       pc.addTrack(t, localStreamRef.current)
     );
 
@@ -186,6 +189,12 @@ export function LiveRoom({ event, onExit }) {
         }
       } else {
         if (signal.type === 'OFFER') {
+          // Cerrar PC existente antes de procesar cada OFFER — maneja re-negociación
+          // cuando el owner reenvía oferta con tracks de cámara tras un intento sin tracks
+          if (pcRef.current) {
+            try { pcRef.current.close(); } catch {}
+            pcRef.current = null;
+          }
           initViewerPC();
           const pc = pcRef.current;
           try {
