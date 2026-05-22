@@ -7,18 +7,18 @@ import { AlertBox }    from '../components/ui/AlertBox';
 import { Spinner }     from '../components/ui/Spinner';
 import { claimBadge, launchBadge } from '../services/badgeService';
 import { wsSubscribe, wsSend } from '../services/wsClient';
-import { WS_TOPICS, WS_APP }   from '../config';
+import { WS_TOPICS, WS_APP, API_URL } from '../config';
 
-const RTC_CONFIG = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    // TURN relay: needed when both peers are behind symmetric NAT in production
-    { urls: 'turn:openrelay.metered.ca:80',  username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-  ],
-};
+// Fallback ICE config (se sobreescribe con la respuesta del backend)
+const DEFAULT_ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'turn:a.relay.metered.ca:80',               username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:a.relay.metered.ca:443',              username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:a.relay.metered.ca:443?transport=tcp',username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:a.relay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+];
 
 export function LiveRoom({ event, onExit }) {
   const { user }  = useAuth();
@@ -28,6 +28,16 @@ export function LiveRoom({ event, onExit }) {
   const canManage = isOwner || isAdmin; // controles de gestión: badges + detener live
 
   const { status, start, stop } = useStream(streamId, user, isOwner, event.creatorId);
+
+  // ICE servers — se obtienen del backend para poder rotar credenciales TURN sin redeploy
+  const iceServersRef = useRef(DEFAULT_ICE_SERVERS);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/rtc/ice-servers`)
+      .then(r => r.ok ? r.json() : null)
+      .then(servers => { if (servers?.length > 0) iceServersRef.current = servers; })
+      .catch(() => { /* usa el fallback DEFAULT_ICE_SERVERS */ });
+  }, []);
 
   const localVideoRef  = useRef(null);
   const localStreamRef = useRef(null);
@@ -77,7 +87,7 @@ export function LiveRoom({ event, onExit }) {
     if (pcsRef.current[viewerId]) {
       try { pcsRef.current[viewerId].close(); } catch {}
     }
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+    const pc = new RTCPeerConnection({ iceServers: iceServersRef.current, iceCandidatePoolSize: 10 });
     pcsRef.current[viewerId] = pc;
     pendingCandidatesOwner.current[viewerId] = []; // inicializar cola ICE para este viewer
 
@@ -132,7 +142,7 @@ export function LiveRoom({ event, onExit }) {
       try { pcRef.current.close(); } catch {}
       pcRef.current = null;
     }
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+    const pc = new RTCPeerConnection({ iceServers: iceServersRef.current, iceCandidatePoolSize: 10 });
     pcRef.current = pc;
 
     pc.ontrack = (e) => {
