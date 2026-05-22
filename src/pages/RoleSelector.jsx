@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useAuth }      from '../context/AuthContext';
 import { changeRole }   from '../services/userService';
-import { TOKEN_KEY, USER_KEY } from '../config';
+import { USER_KEY } from '../config';
 
 const ROLES = [
   {

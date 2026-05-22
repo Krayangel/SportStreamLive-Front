@@ -47,7 +47,7 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     setLoading(true); setError('');
     try {
-      const data = await svcLogin(email, password);
+      await svcLogin(email, password);
       setUser(getStoredUser());
       return true;
     } catch (e) {
@@ -61,7 +61,7 @@ export function AuthProvider({ children }) {
   const register = useCallback(async (formData) => {
     setLoading(true); setError('');
     try {
-      const data = await svcRegister(formData);
+      await svcRegister(formData);
       setUser(getStoredUser());
       return true;
     } catch (e) {
