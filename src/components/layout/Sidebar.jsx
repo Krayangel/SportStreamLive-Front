@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { id: 'retos',     ico: '⚔️', label: 'Retos',      section: 'Comunidad' },
   { id: 'eventos',   ico: '📅', label: 'Eventos',    section: null },
   { id: 'perfil',    ico: '👤', label: 'Mi Perfil',  section: 'Cuenta' },
+  { id: 'admin',     ico: '📈', label: 'Métricas',   section: 'Sistema' },
 ];
 
 export function Sidebar({ page, onNavigate, mobOpen, setMobOpen }) {

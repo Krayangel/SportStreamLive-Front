@@ -1,12 +1,13 @@
 // src/components/layout/AppShell.jsx
 import React, { useState } from 'react';
-import { Sidebar }   from './Sidebar';
-import { Dashboard } from '../../pages/Dashboard';
-import { Metas }     from '../../pages/Metas';
-import { Logros }    from '../../pages/Logros';
-import { Retos }     from '../../pages/Retos';
-import { Eventos }   from '../../pages/Eventos';
-import { Perfil }    from '../../pages/Perfil';
+import { Sidebar }        from './Sidebar';
+import { Dashboard }      from '../../pages/Dashboard';
+import { Metas }          from '../../pages/Metas';
+import { Logros }         from '../../pages/Logros';
+import { Retos }          from '../../pages/Retos';
+import { Eventos }        from '../../pages/Eventos';
+import { Perfil }         from '../../pages/Perfil';
+import { AdminDashboard } from '../../pages/AdminDashboard';
 
 const PAGES = {
   dashboard: Dashboard,
@@ -15,6 +16,7 @@ const PAGES = {
   retos:     Retos,
   eventos:   Eventos,
   perfil:    Perfil,
+  admin:     AdminDashboard,
 };
 
 export function AppShell() {
