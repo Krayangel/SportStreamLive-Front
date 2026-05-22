@@ -17,6 +17,9 @@ export const getEventById = async (id) => {
 export const createEvent = async (body) => {
   const res = await post(ENDPOINTS.EVENTS, body);
   if (!res.ok) {
+    if (res.status === 403) {
+      throw new Error('No tienes permisos para crear eventos. Se requiere el rol de Streaming.');
+    }
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || `Error ${res.status} al crear el evento`);
   }

@@ -13,6 +13,10 @@ const RTC_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    // TURN relay: needed when both peers are behind symmetric NAT in production
+    { urls: 'turn:openrelay.metered.ca:80',  username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
   ],
 };
 
@@ -106,7 +110,14 @@ export function LiveRoom({ event, onExit }) {
 
   // ── VIEWER: inicializar RTCPeerConnection ────────────────
   const initViewerPC = useCallback(() => {
-    if (pcRef.current) return;
+    // Only keep the existing PC if it's actively connected/connecting.
+    // Otherwise close it and start fresh so retried OFFERs work correctly.
+    if (pcRef.current) {
+      const state = pcRef.current.connectionState;
+      if (state === 'connected' || state === 'connecting') return;
+      try { pcRef.current.close(); } catch {}
+      pcRef.current = null;
+    }
     const pc = new RTCPeerConnection(RTC_CONFIG);
     pcRef.current = pc;
 
@@ -210,6 +221,17 @@ export function LiveRoom({ event, onExit }) {
       });
     }
   }, [isLive, isOwner, streamId, user?.id, initViewerPC]);
+
+  // Viewer: reenviar JOIN cada 6s mientras esté en vivo pero sin video aún
+  useEffect(() => {
+    if (isOwner || !isLive || !user?.id || rtcConnected) return;
+    const id = setInterval(() => {
+      wsSend(WS_APP.WEBRTC(streamId), {
+        type: 'JOIN', streamId, senderUserId: user.id,
+      });
+    }, 6000);
+    return () => clearInterval(id);
+  }, [isOwner, isLive, user?.id, rtcConnected, streamId]);
 
   // ── Dueño: pedir cámara ──────────────────────────────────
   const requestCamera = useCallback(async () => {

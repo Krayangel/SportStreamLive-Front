@@ -1,5 +1,5 @@
 // src/services/apiClient.js
-import { TOKEN_KEY } from '../config';
+import { TOKEN_KEY, USER_KEY } from '../config';
 
 export async function apiRequest(url, options = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
@@ -21,7 +21,8 @@ export async function apiRequest(url, options = {}) {
   }
 
   if (res.status === 401) {
-    localStorage.clear();
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
     window.location.reload();
   }
 
