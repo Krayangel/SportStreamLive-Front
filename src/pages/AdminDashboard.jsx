@@ -96,7 +96,7 @@ export function AdminDashboard() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 30_000);
+    const id = setInterval(load, 10_000);
     return () => clearInterval(id);
   }, [load]);
 
@@ -135,7 +135,7 @@ export function AdminDashboard() {
             marginLeft: 'auto', fontSize: '0.65rem',
             color: 'var(--muted)', fontFamily: 'Space Mono,monospace',
           }}>
-            Actualizado: {lastUpdate.toLocaleTimeString('es-ES')} · cada 30 s
+            Actualizado: {lastUpdate.toLocaleTimeString('es-ES')} · cada 10 s
           </span>
         )}
       </div>
@@ -169,7 +169,7 @@ export function AdminDashboard() {
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))',
-        gap: 10,
+        gap: 10, marginBottom: 28,
       }}>
         <MetricNum
           label="Latencia Avg"
@@ -195,6 +195,48 @@ export function AdminDashboard() {
         />
         <MemoryBar used={t.memoryUsedMb ?? 0} max={t.memoryMaxMb ?? 512} />
       </div>
+
+      {/* ── Componentes distribuidos ── */}
+      {data?.components && Object.keys(data.components).length > 0 && (
+        <>
+          <div className="dash-card-head" style={{ marginBottom: 12 }}>
+            <span>🔌</span>
+            <span className="dash-card-title">Componentes</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {Object.entries(data.components).map(([name, status]) => {
+              const up = status === 'UP';
+              return (
+                <div key={name} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '12px 18px',
+                  background: 'var(--card)',
+                  border: `1px solid ${up ? 'rgba(60,245,180,0.25)' : 'rgba(255,77,106,0.25)'}`,
+                  borderRadius: 'var(--r)',
+                  minWidth: 130,
+                }}>
+                  <div style={{
+                    width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
+                    background: up ? 'var(--teal)' : 'var(--danger)',
+                    boxShadow: `0 0 7px ${up ? 'var(--teal)' : 'var(--danger)'}`,
+                  }} />
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize' }}>
+                      {name}
+                    </div>
+                    <div style={{
+                      fontSize: '0.6rem', fontFamily: 'Space Mono,monospace',
+                      color: up ? 'var(--teal)' : 'var(--danger)',
+                    }}>
+                      {status}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
     </div>
   );
