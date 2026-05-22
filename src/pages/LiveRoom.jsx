@@ -413,16 +413,18 @@ export function LiveRoom({ event, onExit }) {
             {isOwner && (
               <video ref={localVideoRef} autoPlay muted playsInline
                 style={{
+                  position: 'absolute', top: 0, left: 0,
                   width: '100%', height: '100%', objectFit: 'cover',
-                  display: camReady ? 'block' : 'none', borderRadius: 'var(--r)',
+                  visibility: camReady ? 'visible' : 'hidden', borderRadius: 'var(--r)',
                 }} />
             )}
             {!isOwner && (
               <>
                 <video ref={remoteVideoRef} autoPlay playsInline
                   style={{
+                    position: 'absolute', top: 0, left: 0,
                     width: '100%', height: '100%', objectFit: 'cover',
-                    display: rtcConnected ? 'block' : 'none', borderRadius: 'var(--r)',
+                    visibility: rtcConnected ? 'visible' : 'hidden', borderRadius: 'var(--r)',
                   }} />
                 {rtcConnected && videoMuted && (
                   <button
@@ -444,7 +446,7 @@ export function LiveRoom({ event, onExit }) {
               </>
             )}
             {((isOwner && !camReady) || (!isOwner && !rtcConnected)) && (
-              <div className="live-placeholder">
+              <div className="live-placeholder" style={{ position: 'relative', zIndex: 1 }}>
                 {status === 'ENDED'
                   ? <span>⏹ El stream ha finalizado</span>
                   : isOwner
