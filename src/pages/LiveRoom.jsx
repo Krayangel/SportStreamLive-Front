@@ -230,6 +230,14 @@ export function LiveRoom({ event, onExit }) {
     }
   }, []);
 
+  // Dueño: activar cámara automáticamente al entrar a la sala
+  useEffect(() => {
+    if (isOwner && status !== 'ENDED') {
+      requestCamera();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Cám lista → iniciar stream
   useEffect(() => {
     if (camReady && isOwner && status === 'IDLE') {
@@ -341,9 +349,10 @@ export function LiveRoom({ event, onExit }) {
                 {status === 'ENDED'
                   ? <span>⏹ El stream ha finalizado</span>
                   : isOwner
-                    ? <span style={{ color: 'var(--muted)', fontSize: '0.9rem', textAlign: 'center', padding: '0 20px' }}>
-                        Pulsa <strong style={{ color: 'var(--accent)' }}>Iniciar Live</strong> para activar tu cámara
-                      </span>
+                    ? <div style={{ textAlign: 'center' }}>
+                        <Spinner text="" />
+                        <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginTop: 8 }}>Activando cámara…</p>
+                      </div>
                     : <div style={{ textAlign: 'center' }}>
                         <Spinner text="" />
                         <p style={{ color: 'var(--muted)', fontSize: '0.82rem', marginTop: 8 }}>
@@ -383,9 +392,9 @@ export function LiveRoom({ event, onExit }) {
               borderRadius: 'var(--r)', padding: 16, marginTop: 10,
             }}>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                {!camReady && status !== 'ENDED' && (
+                {!camReady && status !== 'ENDED' && camError && (
                   <button className="btn-main" style={{ maxWidth: 200 }} onClick={requestCamera}>
-                    🎙️ Iniciar Live
+                    🔄 Reintentar cámara
                   </button>
                 )}
                 {camReady && isLive && (
