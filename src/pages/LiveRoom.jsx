@@ -46,11 +46,13 @@ export function LiveRoom({ event, onExit }) {
   const pendingCandidatesOwner = useRef({});  // owner:  ICE del viewer antes de setRemoteDescription (ANSWER)
 
   const [camReady,     setCamReady]     = useState(false);
-  const [iceState,     setIceState]     = useState('new'); // visibilidad del estado ICE (viewer)
+  const [iceState,     setIceState]     = useState('new');
   const [camError,     setCamError]     = useState('');
   const [viewerCount,  setViewerCount]  = useState(0);
   const [rtcConnected, setRtcConnected] = useState(false);
   const [videoMuted,   setVideoMuted]   = useState(true);
+  // 'waiting' | 'offer_rx' | 'answer_sent' | 'connected' | 'failed'
+  const [sigState,     setSigState]     = useState('waiting');
   const [badgeClaimed, setBadgeClaimed] = useState(false);
   const [badgeMsg,     setBadgeMsg]     = useState('');
   const [claimLoading, setClaimLoading] = useState(false);
@@ -85,7 +87,7 @@ export function LiveRoom({ event, onExit }) {
     if (pcsRef.current[viewerId]) {
       try { pcsRef.current[viewerId].close(); } catch {}
     }
-    const pc = new RTCPeerConnection({ iceServers: iceServersRef.current, iceCandidatePoolSize: 10 });
+    const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
     pcsRef.current[viewerId] = pc;
     pendingCandidatesOwner.current[viewerId] = []; // inicializar cola ICE para este viewer
 
@@ -141,19 +143,20 @@ export function LiveRoom({ event, onExit }) {
       try { pcRef.current.close(); } catch {}
       pcRef.current = null;
     }
-    const pc = new RTCPeerConnection({ iceServers: iceServersRef.current, iceCandidatePoolSize: 10 });
+    const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
     pcRef.current = pc;
 
     pc.ontrack = (e) => {
       const stream = e.streams?.[0];
       if (remoteVideoRef.current && stream) {
-        remoteVideoRef.current.muted = true; // muted permite autoplay en desktop sin gesto del usuario
+        remoteVideoRef.current.muted = true;
         remoteVideoRef.current.srcObject = stream;
         remoteVideoRef.current.play().catch((err) => {
           console.warn('[LiveRoom] autoplay bloqueado:', err.message);
         });
         setRtcConnected(true);
         setVideoMuted(true);
+        setSigState('connected');
       }
     };
 
@@ -180,9 +183,11 @@ export function LiveRoom({ event, onExit }) {
     // NO poner rtcConnected=true aquí — puede dispararse antes de ontrack
     // y mostrar el video negro sin srcObject aún asignado.
     pc.onconnectionstatechange = () => {
+      console.log('[WebRTC viewer] connectionState:', pc.connectionState);
       if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
         setRtcConnected(false);
         setIceState('failed');
+        setSigState('failed');
       }
     };
   }, [streamId, user?.id, event.creatorId]);
@@ -192,8 +197,11 @@ export function LiveRoom({ event, onExit }) {
     if (!streamId || !user?.id) return;
 
     const unsub = wsSubscribe(WS_TOPICS.WEBRTC(streamId), async (signal) => {
-      if (!signal || signal.senderUserId === user.id) return;
-      if (signal.targetUserId && signal.targetUserId !== user.id) return;
+      if (!signal) return;
+      // Usar String() para evitar mismatch número/string según cómo serialice el backend
+      const myId = String(user.id);
+      if (String(signal.senderUserId) === myId) return;
+      if (signal.targetUserId != null && String(signal.targetUserId) !== myId) return;
 
       if (isOwner) {
         if (signal.type === 'JOIN') {
@@ -204,7 +212,6 @@ export function LiveRoom({ event, onExit }) {
           if (pc && pc.signalingState !== 'stable') {
             try {
               await pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp });
-              // Vaciar candidatos ICE encolados que llegaron antes del ANSWER
               const queued = (pendingCandidatesOwner.current[signal.senderUserId] || []).splice(0);
               for (const c of queued) {
                 try { await pc.addIceCandidate(c); } catch (e) { console.warn('[ICE owner flush]', e.message); }
@@ -217,7 +224,6 @@ export function LiveRoom({ event, onExit }) {
           if (pc) {
             const cand = { candidate: signal.candidate, sdpMid: signal.sdpMid, sdpMLineIndex: signal.sdpMLineIndex };
             if (!pc.remoteDescription) {
-              // ANSWER aún no llegó — encolar para aplicar después
               if (!pendingCandidatesOwner.current[signal.senderUserId]) pendingCandidatesOwner.current[signal.senderUserId] = [];
               pendingCandidatesOwner.current[signal.senderUserId].push(cand);
             } else {
@@ -227,24 +233,24 @@ export function LiveRoom({ event, onExit }) {
         }
       } else {
         if (signal.type === 'OFFER') {
-          // Cerrar PC existente antes de procesar cada OFFER — maneja re-negociación
-          // cuando el owner reenvía oferta con tracks de cámara tras un intento sin tracks
+          console.log('[WebRTC] OFFER recibido del owner');
+          setSigState('offer_rx');
           if (pcRef.current) {
             try { pcRef.current.close(); } catch {}
             pcRef.current = null;
           }
-          pendingCandidates.current = []; // limpiar cola al reiniciar PC
+          pendingCandidates.current = [];
           initViewerPC();
           const pc = pcRef.current;
           try {
             await pc.setRemoteDescription({ type: 'offer', sdp: signal.sdp });
-            // Vaciar candidatos ICE encolados que llegaron antes del OFFER
             const queued = pendingCandidates.current.splice(0);
             for (const c of queued) {
               try { await pc.addIceCandidate(c); } catch (e) { console.warn('[ICE viewer flush]', e.message); }
             }
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
+            setSigState('answer_sent');
             wsSend(WS_APP.WEBRTC(streamId), {
               type: 'ANSWER', streamId,
               senderUserId: user.id,
@@ -253,6 +259,7 @@ export function LiveRoom({ event, onExit }) {
             });
           } catch (err) {
             console.error('[LiveRoom] OFFER error:', err.message);
+            setSigState('failed');
           }
         }
         if (signal.type === 'ICE') {
@@ -260,7 +267,6 @@ export function LiveRoom({ event, onExit }) {
           if (pc) {
             const cand = { candidate: signal.candidate, sdpMid: signal.sdpMid, sdpMLineIndex: signal.sdpMLineIndex };
             if (!pc.remoteDescription) {
-              // OFFER aún no llegó — encolar para aplicar después
               pendingCandidates.current.push(cand);
             } else {
               try { await pc.addIceCandidate(cand); } catch (e) { console.warn('[ICE viewer]', e.message); }
@@ -293,6 +299,15 @@ export function LiveRoom({ event, onExit }) {
     }, 6000);
     return () => clearInterval(id);
   }, [isOwner, isLive, user?.id, rtcConnected, streamId]);
+
+  // Viewer: reintento manual de conexión
+  const retryJoin = useCallback(() => {
+    if (isOwner || !user?.id) return;
+    setSigState('waiting');
+    setIceState('new');
+    initViewerPC();
+    wsSend(WS_APP.WEBRTC(streamId), { type: 'JOIN', streamId, senderUserId: user.id });
+  }, [isOwner, user?.id, streamId, initViewerPC]);
 
   // ── Dueño: pedir cámara ──────────────────────────────────
   const requestCamera = useCallback(async () => {
@@ -459,14 +474,18 @@ export function LiveRoom({ event, onExit }) {
                         <p style={{ color: 'var(--muted)', fontSize: '0.82rem', marginTop: 8 }}>
                           Esperando video del streamer…
                         </p>
-                        <p style={{ color: 'var(--muted)', fontSize: '0.75rem', marginTop: 4 }}>
-                          El chat ya está activo ➡
+                        <p style={{ color: 'var(--muted)', fontSize: '0.72rem', marginTop: 4, fontFamily: 'monospace' }}>
+                          señal: {sigState} · ICE: {iceState}
                         </p>
-                        {iceState !== 'new' && iceState !== 'connected' && iceState !== 'completed' && (
-                          <p style={{ color: 'var(--muted)', fontSize: '0.72rem', marginTop: 4, fontFamily: 'monospace' }}>
-                            ICE: {iceState}
-                          </p>
-                        )}
+                        <button
+                          onClick={retryJoin}
+                          style={{
+                            marginTop: 10, background: 'var(--accent)', color: '#000',
+                            border: 'none', borderRadius: 6, padding: '6px 16px',
+                            fontSize: '0.78rem', cursor: 'pointer', fontWeight: 700,
+                          }}>
+                          ↺ Reintentar conexión
+                        </button>
                       </div>
                 }
               </div>
