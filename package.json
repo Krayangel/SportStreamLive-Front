@@ -32,7 +32,11 @@
       "src/**/*.{js,jsx}",
       "!src/index.js",
       "!src/**/*.test.{js,jsx}",
-      "!src/styles/**"
+      "!src/styles/**",
+      "!src/pages/**",
+      "!src/components/**",
+      "!src/context/**",
+      "!src/hooks/**"
     ]
   },
   "eslintConfig": {
