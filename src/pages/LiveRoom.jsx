@@ -7,7 +7,7 @@ import { AlertBox }    from '../components/ui/AlertBox';
 import { Spinner }     from '../components/ui/Spinner';
 import { claimBadge, launchBadge } from '../services/badgeService';
 import { wsSubscribe, wsSend } from '../services/wsClient';
-import { WS_TOPICS, WS_APP, API_URL } from '../config';
+import { WS_TOPICS, WS_APP } from '../config';
 
 // Fallback ICE config (se sobreescribe con la respuesta del backend)
 const DEFAULT_ICE_SERVERS = [
@@ -50,6 +50,7 @@ export function LiveRoom({ event, onExit }) {
   const [camError,     setCamError]     = useState('');
   const [viewerCount,  setViewerCount]  = useState(0);
   const [rtcConnected, setRtcConnected] = useState(false);
+  const [videoMuted,   setVideoMuted]   = useState(true);
   const [badgeClaimed, setBadgeClaimed] = useState(false);
   const [badgeMsg,     setBadgeMsg]     = useState('');
   const [claimLoading, setClaimLoading] = useState(false);
@@ -146,10 +147,13 @@ export function LiveRoom({ event, onExit }) {
     pc.ontrack = (e) => {
       const stream = e.streams?.[0];
       if (remoteVideoRef.current && stream) {
+        remoteVideoRef.current.muted = true; // muted permite autoplay en desktop sin gesto del usuario
         remoteVideoRef.current.srcObject = stream;
-        // Llamar play() explícitamente — autoPlay no siempre dispara al asignar srcObject por JS
-        remoteVideoRef.current.play().catch(() => {});
+        remoteVideoRef.current.play().catch((err) => {
+          console.warn('[LiveRoom] autoplay bloqueado:', err.message);
+        });
         setRtcConnected(true);
+        setVideoMuted(true);
       }
     };
 
@@ -402,10 +406,7 @@ export function LiveRoom({ event, onExit }) {
 
       {camError && <AlertBox type="error" message={camError} />}
 
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 340px', gap: 14,
-        alignItems: 'start', marginBottom: 14,
-      }}>
+      <div className="live-grid">
         <div>
           {/* Pantalla */}
           <div className="live-screen" style={{ position: 'relative' }}>
@@ -417,11 +418,30 @@ export function LiveRoom({ event, onExit }) {
                 }} />
             )}
             {!isOwner && (
-              <video ref={remoteVideoRef} autoPlay playsInline
-                style={{
-                  width: '100%', height: '100%', objectFit: 'cover',
-                  display: rtcConnected ? 'block' : 'none', borderRadius: 'var(--r)',
-                }} />
+              <>
+                <video ref={remoteVideoRef} autoPlay playsInline
+                  style={{
+                    width: '100%', height: '100%', objectFit: 'cover',
+                    display: rtcConnected ? 'block' : 'none', borderRadius: 'var(--r)',
+                  }} />
+                {rtcConnected && videoMuted && (
+                  <button
+                    onClick={() => {
+                      if (remoteVideoRef.current) remoteVideoRef.current.muted = false;
+                      setVideoMuted(false);
+                    }}
+                    style={{
+                      position: 'absolute', bottom: 14, right: 14,
+                      background: 'rgba(0,0,0,0.65)', color: '#fff',
+                      border: '1px solid rgba(255,255,255,0.25)',
+                      borderRadius: 8, padding: '7px 16px',
+                      fontSize: '0.8rem', cursor: 'pointer', zIndex: 10,
+                      fontFamily: 'Space Mono, monospace',
+                    }}>
+                    🔇 Activar sonido
+                  </button>
+                )}
+              </>
             )}
             {((isOwner && !camReady) || (!isOwner && !rtcConnected)) && (
               <div className="live-placeholder">
