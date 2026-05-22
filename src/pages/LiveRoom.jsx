@@ -32,15 +32,9 @@ export function LiveRoom({ event, onExit }) {
 
   const { status, start, stop } = useStream(streamId, user, isOwner, event.creatorId);
 
-  // ICE servers — se obtienen del backend para poder rotar credenciales TURN sin redeploy
+  // ICE servers — usa DEFAULT_ICE_SERVERS con openrelay.metered.ca
+  // (el endpoint del backend aún no está sincronizado con las URLs correctas)
   const iceServersRef = useRef(DEFAULT_ICE_SERVERS);
-
-  useEffect(() => {
-    fetch(`${API_URL}/api/rtc/ice-servers`)
-      .then(r => r.ok ? r.json() : null)
-      .then(servers => { if (servers?.length > 0) iceServersRef.current = servers; })
-      .catch(() => { /* usa el fallback DEFAULT_ICE_SERVERS */ });
-  }, []);
 
   const localVideoRef  = useRef(null);
   const localStreamRef = useRef(null);
