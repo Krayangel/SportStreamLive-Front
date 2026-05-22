@@ -96,6 +96,9 @@ export function LiveRoom({ event, onExit }) {
       if (candidate) {
         console.log(`[ICE owner→${viewerId}] ${candidate.type} ${candidate.protocol} ${candidate.address}`);
         wsSend(WS_APP.WEBRTC(streamId), {
+          type: 'ICE', streamId,
+          senderUserId: user.id,
+          targetUserId: viewerId,
           candidate: candidate.candidate,
           sdpMid: candidate.sdpMid,
           sdpMLineIndex: candidate.sdpMLineIndex,
@@ -154,6 +157,9 @@ export function LiveRoom({ event, onExit }) {
       if (candidate) {
         console.log(`[ICE viewer] ${candidate.type} ${candidate.protocol} ${candidate.address}`);
         wsSend(WS_APP.WEBRTC(streamId), {
+          type: 'ICE', streamId,
+          senderUserId: user.id,
+          targetUserId: event.creatorId,
           candidate: candidate.candidate,
           sdpMid: candidate.sdpMid,
           sdpMLineIndex: candidate.sdpMLineIndex,
