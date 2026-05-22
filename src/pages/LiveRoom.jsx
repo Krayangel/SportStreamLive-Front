@@ -27,7 +27,7 @@ export function LiveRoom({ event, onExit }) {
   const isAdmin   = user?.roles?.includes('ROLE_ADMIN');
   const canManage = isOwner || isAdmin; // controles de gestión: badges + detener live
 
-  const { status, start, stop } = useStream(streamId, user, isOwner);
+  const { status, start, stop } = useStream(streamId, user, isOwner, event.creatorId);
 
   const localVideoRef  = useRef(null);
   const localStreamRef = useRef(null);

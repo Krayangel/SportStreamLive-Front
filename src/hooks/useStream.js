@@ -1,11 +1,21 @@
 // src/hooks/useStream.js
 import { useState, useEffect, useCallback } from 'react';
 import { wsSubscribe, wsSend } from '../services/wsClient';
-import { startStream, stopStream } from '../services/streamService';
+import { startStream, stopStream, isStreamActive } from '../services/streamService';
 import { WS_TOPICS, WS_APP } from '../config';
 
-export function useStream(streamId, user, isOwner) {
+// ownerId: userId del creador del stream (para que admin pueda detenerlo)
+export function useStream(streamId, user, isOwner, ownerId) {
   const [status, setStatus] = useState('IDLE');
+
+  // Verificar estado actual al montar — cubre el caso de viewer/admin
+  // que entra cuando el stream ya está activo (el evento STARTED ya fue emitido)
+  useEffect(() => {
+    if (!streamId) return;
+    isStreamActive(streamId)
+      .then(r => { if (r.active) setStatus(s => s === 'IDLE' ? 'STARTED' : s); })
+      .catch(() => {});
+  }, [streamId]);
 
   useEffect(() => {
     if (!streamId) return;
@@ -38,19 +48,22 @@ export function useStream(streamId, user, isOwner) {
   }, [streamId, user]);
 
   const stop = useCallback(async () => {
-    if (!user?.id || !streamId) return;
+    // ownerId: cuando el admin detiene un live, el backend valida que el userId
+    // coincida con el creador del stream → usar ownerId en vez del user.id del admin
+    const stopUserId = ownerId ?? user?.id;
+    if (!stopUserId || !streamId) return;
     try {
-      await stopStream(streamId, user.id);
+      await stopStream(streamId, stopUserId);
       setStatus('ENDED');
       wsSend(WS_APP.STREAM_STOP(streamId), {
         streamId,
-        userId: user.id,
+        userId: stopUserId,
         tipo: 'STOP',
       });
     } catch (err) {
       console.error('[useStream] stop error:', err.message);
     }
-  }, [streamId, user]);
+  }, [streamId, user, ownerId]);
 
   return { status, start, stop };
 }
